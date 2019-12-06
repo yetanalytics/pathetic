@@ -19,8 +19,10 @@
                    (remove internal?))]
      (every?
       (fn [loc]
-        (= (z/node loc)
-           (get-in json (k-path loc))))
+        (let [key-path (k-path loc)]
+          (= (z/node loc)
+             (get-in json key-path)
+             (z/node (loc-in json key-path)))))
       locs))))
 
 (comment

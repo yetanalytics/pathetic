@@ -68,16 +68,23 @@
    seq
    (fn make-node
      [node kids]
-     (if (map-entry? node)
-       (if (= 2 (count kids))
-         (let [[k v] kids]
-           (clojure.lang.MapEntry. k v))
-         (throw (ex-info "Can only have two children in a MapEntry"
-                         {:type ::map-entry-constraint
+     (if-let [empty-coll (empty node)]
+       (into empty-coll
+             kids)
+       ;; if clojure.core/empty doesn't work, check for map entry
+       (if (map-entry? node)
+         (if (= 2 (count kids))
+           (let [[k v] kids]
+             (clojure.lang.MapEntry. k v))
+           (throw (ex-info "Can only have two children in a MapEntry"
+                           {:type ::map-entry-constraint
+                            :node node
+                            :children kids})))
+         (throw (ex-info (format "Don't know how to make %s node" (type node))
+                         {:type ::unknown-collection
                           :node node
-                          :children kids})))
-       (into (empty node)
-             kids)))
+                          :node-type (type node)
+                          :children kids})))))
    root))
 
 (s/fdef internal?
@@ -128,6 +135,65 @@
         (reverse
          (keep el-key (take-while some?
                                   (iterate z/up loc))))))
+
+;; given a root and a key-path, can we return a loc at that path?
+;; this would make up some for the inefficiency of having to walk everything
+;; when there is a known path?
+
+(s/fdef get-child
+  :args (s/cat :loc (s/nilable ::loc)
+               :k ::key)
+  :ret (s/nilable ::loc))
+
+(defn get-child
+  "Returns the child of loc at k or nil if key not present.
+  Will skip map-entries entirely, like clojure.core/get"
+  [[node {:keys [l r ppath pnodes]} :as loc] k]
+  (when loc
+    (if (z/branch? loc)
+      (if (internal? loc)
+        (throw (ex-info "called get-child on an internal node (map entry or key)"
+                        {:type ::get-child-on-internal
+                         :loc loc
+                         :key k}))
+        (when-let [[fk fv :as found] (find node k)]
+          (let [child-locs (iterate z/right
+                                    (z/down loc))]
+            (if (map? node)
+              ;; if the node is a map, we want to skip the map entries
+              (-> (some
+                   (fn [[cn _ :as cl]]
+                     (when (= found cn)
+                       cl))
+                   child-locs)
+                  z/down
+                  z/right)
+              (nth child-locs fk)))))
+      (throw (ex-info "called get-child on a leaf node"
+                      {:type ::get-child-on-leaf
+                       :loc loc
+                       :key k})))))
+
+(s/fdef get-child-in
+  :args (s/cat :loc (s/nilable ::loc)
+               :key-path ::key-path)
+  :ret (s/nilable ::loc))
+
+
+(defn get-child-in
+  "Like clojure.core/get-in, but for zipper structures."
+  [loc key-path]
+  (reduce get-child loc key-path))
+
+(s/fdef loc-in
+  :args (s/cat :root ::any-json
+               :key-path ::key-path)
+  :ret (s/nilable ::loc))
+
+(defn loc-in
+  "Convenience, like get-child-in, but it takes root and returns a loc or nil."
+  [root key-path]
+  (-> root json-zip (get-child-in key-path)))
 
 (s/def ::path-map
   (s/map-of
