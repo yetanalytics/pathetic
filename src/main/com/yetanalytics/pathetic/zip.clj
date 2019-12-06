@@ -101,7 +101,7 @@
       false))
 
 (s/def ::key
-  (s/or :index pos-int?
+  (s/or :index (s/int-in 0 Integer/MAX_VALUE)
         :key (s/or :string string?
                    :keyword keyword?)))
 
@@ -199,7 +199,6 @@
   (s/map-of
    ::key-path
    any?))
-
 
 (s/fdef json-locs
   :args (s/cat :json ::any-json)
