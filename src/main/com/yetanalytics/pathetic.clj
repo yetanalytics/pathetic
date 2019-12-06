@@ -49,7 +49,9 @@
   :ret ::zip/any-json)
 
 (defn select
-  "Given json data and a path, return the selection"
+  "Given json data and a path, return the selection. Note that this does not
+  return the json-path selection, just the pruned datastructure as with
+  clojure.core/select-keys"
   [json path]
   (let [path (json-path/parse path)]
     (loop [loc (zip/json-zip json)]

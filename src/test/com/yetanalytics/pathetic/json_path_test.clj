@@ -15,4 +15,10 @@
     "$..book[0,1]"           ['* #{"book"} #{0 1}]
     "$..book[:2]"            ['* #{"book"} (->RangeSpec 0 2 1)]
     "$..*"                   '[* *]
+    ;; selections from cmi5
+    "$.context.contextActivities.grouping[*]"
+    [#{"context"} #{"contextActivities"} #{"grouping"} '*]
+
+    "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid']"
+    [#{"context"} #{"extensions"} #{"https://w3id.org/xapi/cmi5/context/extensions/sessionid"}]
     ))
