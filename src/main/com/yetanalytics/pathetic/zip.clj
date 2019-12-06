@@ -106,7 +106,7 @@
 (defn el-key
   [[node {:keys [l r ppath pnodes]} :as loc]]
   (when-not (internal? loc)
-    (let [p (last pnodes)]
+    (let [p (peek pnodes)]
       (cond
         (map-entry? p)
         (key p)
