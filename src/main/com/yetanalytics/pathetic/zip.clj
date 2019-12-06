@@ -72,7 +72,7 @@
        (if (= 2 (count kids))
          (let [[k v] kids]
            (clojure.lang.MapEntry. k v))
-         (throw (ex-info "Can't have more than 2 children in a MapEntry"
+         (throw (ex-info "Can only have two children in a MapEntry"
                          {:type ::map-entry-constraint
                           :node node
                           :children kids})))
