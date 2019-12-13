@@ -93,12 +93,14 @@
 
 (defn internal?
   "Is a location internal, ie a map entry or key"
-  [[node {:keys [l r ppath pnodes]} :as loc]]
-  (or (map-entry? node)
-      ;; key position
-      (and (some-> loc z/up z/node map-entry?)
-           (some-> l count (= 0)))
-      false))
+  [loc]
+  (let [node (z/node loc)]
+    (or (map-entry? node)
+        ;; key position
+        (and (string? node)
+             (zero? (count (z/lefts loc)))
+             (some-> loc z/up z/node map-entry?))
+        false)))
 
 (s/def ::key
   (s/or :index (s/int-in 0 Integer/MAX_VALUE)
@@ -111,15 +113,15 @@
         ::key))
 
 (defn el-key
-  [[node {:keys [l r ppath pnodes]} :as loc]]
+  [loc]
   (when-not (internal? loc)
-    (let [p (peek pnodes)]
+    (when-let [p (peek (z/path loc))]
       (cond
         (map-entry? p)
         (key p)
 
         (vector? p)
-        (count l)))))
+        (count (z/lefts loc))))))
 
 (s/def ::key-path
   (s/every ::key))
@@ -130,11 +132,12 @@
         ::key-path))
 
 (defn k-path
-  [[node {:keys [l r ppath pnodes]} :as loc]]
+  [loc]
   (into []
         (reverse
-         (keep el-key (take-while some?
-                                  (iterate z/up loc))))))
+         (keep el-key
+               (take-while some?
+                           (iterate z/up loc))))))
 
 ;; given a root and a key-path, can we return a loc at that path?
 ;; this would make up some for the inefficiency of having to walk everything
@@ -162,8 +165,8 @@
             (if (map? node)
               ;; if the node is a map, we want to skip the map entries
               (-> (some
-                   (fn [[cn _ :as cl]]
-                     (when (= found cn)
+                   (fn [cl]
+                     (when (= found (z/node cl))
                        cl))
                    child-locs)
                   z/down
