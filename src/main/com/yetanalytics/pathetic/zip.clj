@@ -159,19 +159,20 @@
                         {:type ::get-child-on-internal
                          :loc loc
                          :key k}))
-        (when-let [[fk fv :as found] (find node k)]
-          (let [child-locs (iterate z/right
-                                    (z/down loc))]
-            (if (map? (z/node loc))
-              ;; if the node is a map, we want to skip the map entries
-              (-> (some
-                   (fn [cl]
-                     (when (= found (z/node cl))
-                       cl))
-                   child-locs)
-                  z/down
-                  z/right)
-              (nth child-locs fk)))))
+        (let [node (z/node loc)]
+          (when-let [[fk fv :as found] (find node k)]
+            (let [child-locs (iterate z/right
+                                      (z/down loc))]
+              (if (map? node)
+                ;; if the node is a map, we want to skip the map entries
+                (-> (some
+                     (fn [cl]
+                       (when (= found (z/node cl))
+                         cl))
+                     child-locs)
+                    z/down
+                    z/right)
+                (nth child-locs fk))))))
       (throw (ex-info "called get-child on a leaf node"
                       {:type ::get-child-on-leaf
                        :loc loc
