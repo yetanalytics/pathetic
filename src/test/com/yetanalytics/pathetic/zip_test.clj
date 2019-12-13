@@ -8,6 +8,23 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer :all]))
 
+(deftest zip-functions-test
+  (let [results (stest/check
+                 `#{json-zip
+                    internal?
+                    el-key
+                    k-path
+                    get-child
+                    get-child-in
+                    loc-in
+                    json-locs
+                    json->path-map
+                    path-map->json
+                    })
+        {:keys [total
+                check-passed]} (stest/summarize-results results)]
+    (is (= total check-passed))))
+
 (defspec k-path-is-valid-for-get-in
   (prop/for-all
    [json (s/gen :com.yetanalytics.pathetic.zip/any-json)]
@@ -26,7 +43,7 @@
       locs))))
 
 (comment
-
+  (keys (first (stest/check (stest/checkable-syms 'com.yetanalytics.pathetic.zip))))
   (stest/instrumentable-syms `com.yetanalytics.pathetic.zip)
   (s/exercise-fn `com.yetanalytics.pathetic.zip/json->path-map)
   #{com.yetanalytics.pathetic.zip/json->path-map com.yetanalytics.pathetic.zip/path-map->json com.yetanalytics.pathetic.zip/k-path com.yetanalytics.pathetic.zip/el-key com.yetanalytics.pathetic.zip/internal? com.yetanalytics.pathetic.zip/path-map com.yetanalytics.pathetic.zip/json-zip}

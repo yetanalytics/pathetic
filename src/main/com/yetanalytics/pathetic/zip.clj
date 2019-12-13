@@ -1,6 +1,7 @@
 (ns com.yetanalytics.pathetic.zip
   (:require [clojure.zip :as z]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]
+            [clojure.spec.gen.alpha :as sgen]))
 
 (s/def ::any-json
   (s/nilable
@@ -30,15 +31,15 @@
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/l
   (s/nilable
-   (s/every any?)))
+   (s/every ::any-json)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/r
   (s/nilable
-   (s/every any?)))
+   (s/every ::any-json)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/pnodes
   (s/nilable
-   (s/every any?)))
+   (s/every ::any-json)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc/ppath
   (s/nilable
@@ -48,9 +49,19 @@
             :com.yetanalytics.pathetic.zip.loc.ppath/pnodes
             :com.yetanalytics.pathetic.zip.loc/ppath])))
 
+(declare json-zip)
+
 (s/def ::loc
-  (s/tuple any?
-           :com.yetanalytics.pathetic.zip.loc/ppath))
+  (s/with-gen (s/tuple ::any-json
+                       :com.yetanalytics.pathetic.zip.loc/ppath)
+    (fn []
+      (sgen/bind
+       (s/gen ::any-json)
+       (fn [any-json]
+         (sgen/elements
+          (take-while (complement z/end?)
+                      (iterate z/next
+                               (json-zip any-json)))))))))
 
 
 (s/fdef json-zip
@@ -144,7 +155,7 @@
 ;; when there is a known path?
 
 (s/fdef get-child
-  :args (s/cat :loc (s/nilable ::loc)
+  :args (s/cat :loc ::loc
                :k ::key)
   :ret (s/nilable ::loc))
 
@@ -152,7 +163,24 @@
   "Returns the child of loc at k or nil if key not present.
   Will skip map-entries entirely, like clojure.core/get"
   [loc k]
-  (when loc
+  (when (and loc
+             (z/branch? loc)
+             (not (internal? loc)))
+    (let [node (z/node loc)]
+      (when-let [[fk fv :as found] (find node k)]
+        (let [child-locs (iterate z/right
+                                  (z/down loc))]
+          (if (map? node)
+            ;; if the node is a map, we want to skip the map entries
+            (-> (some
+                 (fn [cl]
+                   (when (= found (z/node cl))
+                     cl))
+                 child-locs)
+                z/down
+                z/right)
+            (nth child-locs fk))))))
+  #_(when loc
     (if (z/branch? loc)
       (if (internal? loc)
         (throw (ex-info "called get-child on an internal node (map entry or key)"
@@ -202,7 +230,7 @@
 (s/def ::path-map
   (s/map-of
    ::key-path
-   any?))
+   ::any-json))
 
 (s/fdef json-locs
   :args (s/cat :json ::any-json)
