@@ -151,7 +151,7 @@
 (defn get-child
   "Returns the child of loc at k or nil if key not present.
   Will skip map-entries entirely, like clojure.core/get"
-  [[node {:keys [l r ppath pnodes]} :as loc] k]
+  [loc k]
   (when loc
     (if (z/branch? loc)
       (if (internal? loc)
@@ -162,7 +162,7 @@
         (when-let [[fk fv :as found] (find node k)]
           (let [child-locs (iterate z/right
                                     (z/down loc))]
-            (if (map? node)
+            (if (map? (z/node loc))
               ;; if the node is a map, we want to skip the map entries
               (-> (some
                    (fn [cl]
