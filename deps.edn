@@ -1,7 +1,10 @@
 {:paths ["resources" "src/main"]
  :deps {org.clojure/clojure {:mvn/version "RELEASE"}
         org.blancas/kern {:mvn/version "1.1.0"}
-        org.clojure/data.json {:mvn/version "0.2.7"}}
+        org.clojure/data.json {:mvn/version "0.2.7"}
+        com.yetanalytics/xapi-schema
+        {:git/url "https://github.com/yetanalytics/xapi-schema"
+         :sha "e2c517e7adcedc7f3012b90bce274e2c33cdbcc1"}}
  :aliases
  {:test {:extra-paths ["src/test"]
          :extra-deps {org.clojure/test.check {:mvn/version "RELEASE"}}}
