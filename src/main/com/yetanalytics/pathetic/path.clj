@@ -182,7 +182,9 @@
   ([spec path hint-data]
    (if (empty? path)
      (do
-       (assert (s/get-spec spec) "Must return a valid, registered spec!")
+       (assert (or (s/get-spec spec)
+                   (fn? spec)
+                   (s/spec? spec)) "Must return a valid, registered spec or a function or a spec literal")
        spec)
      (if-let [spec-entry (get spec-map spec)]
        (let [p-key (first path)]

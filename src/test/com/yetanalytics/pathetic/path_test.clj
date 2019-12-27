@@ -29,18 +29,8 @@
 
   (testing "works for arbitrary and relative paths"
     (is (= ::xs/language-map-text
-           (path->spec ::xs/activity ["definition" "name" "en-US"])))))
-
-
-(comment
-  (path->spec ::xs/statement ["actor" "member"] long-statement)
-  (path->spec ::xs/statement
-              ["object" "definition" "extensions" "http://example.com/profiles/meetings/activitydefinitionextensions/room" "id"] long-statement)
-
-
-  (path->spec ::xs/statement
-              ["result" "extensions" "http://example.com/profiles/meetings/resultextensions/minuteslocation"] long-statement)
-  long-statement
-
-
-  )
+           (path->spec ::xs/activity ["definition" "name" "en-US"]))))
+  (testing "can return functions for use as specs"
+    (is (= string?
+           (path->spec ::xs/statement
+                       ["object" "definition" "correctResponsesPattern" 0])))))
