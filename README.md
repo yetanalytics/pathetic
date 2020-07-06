@@ -274,7 +274,7 @@ moc "API" docs for this util lib that provides idomatic Clojure core-esq fns whi
 
 ## License
 
-Copyright © 2019-2020 Yet Ana
+Copyright © 2019-2020 Yet Analytics, Inc.
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
