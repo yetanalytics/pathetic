@@ -1,45 +1,20 @@
 (ns com.yetanalytics.pathetic.zip
   (:require [clojure.zip :as z]
             [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as sgen]))
-
-(s/def ::any-json
-  (s/nilable
-   (s/or :scalar
-         (s/or :string
-               string?
-               :number
-               (s/or :double
-                     (s/double-in :infinite? false :NaN? false
-                                  :max 1000.0 :min -1000.0)
-                     :int
-                     int?)
-               :boolean
-               boolean?)
-         :coll
-         (s/or :map
-               (s/map-of
-                string?
-                ::any-json
-                :gen-max 4)
-               :vector
-               (s/coll-of
-                ::any-json
-                :kind vector?
-                :into []
-                :gen-max 4)))))
+            [clojure.spec.gen.alpha :as sgen]
+            [com.yetanalytics.pathetic.json :as json]))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/l
   (s/nilable
-   (s/every ::any-json)))
+   (s/every ::json/any)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/r
   (s/nilable
-   (s/every ::any-json)))
+   (s/every ::json/any)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/pnodes
   (s/nilable
-   (s/every ::any-json)))
+   (s/every ::json/any)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc/ppath
   (s/nilable
@@ -52,11 +27,11 @@
 (declare json-zip)
 
 (s/def ::loc
-  (s/with-gen (s/tuple ::any-json
+  (s/with-gen (s/tuple ::json/any
                        :com.yetanalytics.pathetic.zip.loc/ppath)
     (fn []
       (sgen/bind
-       (s/gen ::any-json)
+       (s/gen ::json/any)
        (fn [any-json]
          (sgen/elements
           (take-while (complement z/end?)
@@ -65,7 +40,7 @@
 
 
 (s/fdef json-zip
-  :args (s/cat :root ::any-json)
+  :args (s/cat :root ::json/any)
   :ret ::loc
   :fn (fn [{{root :root} :args
             [node _] :ret}]
@@ -193,7 +168,7 @@
   (reduce get-child loc key-path))
 
 (s/fdef loc-in
-  :args (s/cat :root ::any-json
+  :args (s/cat :root ::json/any
                :key-path ::key-path)
   :ret (s/nilable ::loc))
 
@@ -205,10 +180,10 @@
 (s/def ::path-map
   (s/map-of
    ::key-path
-   ::any-json))
+   ::json/any))
 
 (s/fdef json-locs
-  :args (s/cat :json ::any-json)
+  :args (s/cat :json ::json/any)
   :ret (s/every ::loc)
   :fn (fn [{locs :ret}]
         (every? (complement internal?) locs)))
@@ -223,7 +198,7 @@
        (remove internal?)))
 
 (s/fdef json->path-map
-  :args (s/cat :json ::any-json)
+  :args (s/cat :json ::json/any)
   :ret ::path-map)
 
 (defn json->path-map
@@ -236,7 +211,7 @@
 
 (s/fdef path-map->json
   :args (s/cat :path-map ::path-map)
-  :ret ::any-json)
+  :ret ::json/any)
 
 (defn path-map->json
   [path-map]

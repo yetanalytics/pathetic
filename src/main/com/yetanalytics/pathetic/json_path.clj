@@ -1,7 +1,9 @@
 (ns com.yetanalytics.pathetic.json-path
   (:require [blancas.kern.core :as k]
+            [clojure.spec.alpha :as s]
             [blancas.kern.lexer.basic :as kl]
-            [clojure.spec.alpha :as s]))
+            [clojure.math.combinatorics :as combo]
+            [com.yetanalytics.pathetic.json :as json]))
 
 (s/def ::root
   #{'$})
@@ -46,14 +48,29 @@
 (s/def :range/step
   int?)
 
+(s/def :range/bounded? ;; was this range bounded, or does it use a MAX_VALUE?
+  boolean?)
 
 
-(defrecord RangeSpec [start end step])
+
+(defrecord RangeSpec [start end step bounded?])
+
+(s/fdef range-spec?
+  :args (s/cat :item any?)
+  :ret boolean?)
+
+(defn range-spec?
+  [item]
+  (instance? RangeSpec item))
 
 (s/def ::range
   (s/keys :req-un [:range/start
                    :range/end
-                   :range/step]))
+                   :range/step
+                   :range/bounded?]))
+
+(def ^:const max-long-str
+  (str Long/MAX_VALUE))
 
 (def index-range
   (k/bind [start (k/option 0
@@ -74,7 +91,12 @@
 
                         (if (number? step)
                           step
-                          (Long/parseLong step))))))
+                          (Long/parseLong step))
+                        ;; if the option is used, we're unbounded
+                        (if (#{Long/MAX_VALUE
+                               max-long-str} end)
+                          false
+                          true)))))
 
 (defn escaped-by
   [c & [charset-p]]
@@ -129,7 +151,10 @@
     ;; normal key
     (k/<$>
      (partial hash-set)
-     (k/<+> (k/many1 k/alpha-num)))
+     (k/<+> (k/many1 k/alpha-num)
+            ;; support full language tags
+            (k/optional (k/<+> (k/one-of* "-")
+                               (k/many1 k/alpha-num)))))
     ;; dot wildcard
     wildcard
     ;; double-dot wildcard

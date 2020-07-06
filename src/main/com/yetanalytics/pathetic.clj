@@ -2,9 +2,8 @@
   (:require [com.yetanalytics.pathetic.json-path :as json-path]
             [com.yetanalytics.pathetic.zip :as zip]
             [clojure.zip :as z]
-            [clojure.spec.alpha :as s]))
-
-
+            [clojure.spec.alpha :as s]
+            [com.yetanalytics.pathetic.json :as json]))
 
 (s/fdef satisfied
   :args (s/cat :json-path ::json-path/json-path
@@ -45,8 +44,8 @@
 
 (s/fdef select
   :args (s/cat :path string?
-               :json ::zip/any-json)
-  :ret ::zip/any-json)
+               :json ::json/any)
+  :ret ::json/any)
 
 (defn select
   "Given json data and a path, return the selection. Note that this does not
