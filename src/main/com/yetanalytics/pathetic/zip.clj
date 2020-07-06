@@ -1,45 +1,20 @@
 (ns com.yetanalytics.pathetic.zip
   (:require [clojure.zip :as z]
             [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as sgen]))
-
-(s/def ::any-json
-  (s/nilable
-   (s/or :scalar
-         (s/or :string
-               string?
-               :number
-               (s/or :double
-                     (s/double-in :infinite? false :NaN? false
-                                  :max 1000.0 :min -1000.0)
-                     :int
-                     int?)
-               :boolean
-               boolean?)
-         :coll
-         (s/or :map
-               (s/map-of
-                string?
-                ::any-json
-                :gen-max 4)
-               :vector
-               (s/coll-of
-                ::any-json
-                :kind vector?
-                :into []
-                :gen-max 4)))))
+            [clojure.spec.gen.alpha :as sgen]
+            [com.yetanalytics.pathetic.json :as json]))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/l
   (s/nilable
-   (s/every ::any-json)))
+   (s/every ::json/any)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/r
   (s/nilable
-   (s/every ::any-json)))
+   (s/every ::json/any)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc.ppath/pnodes
   (s/nilable
-   (s/every ::any-json)))
+   (s/every ::json/any)))
 
 (s/def :com.yetanalytics.pathetic.zip.loc/ppath
   (s/nilable
@@ -52,11 +27,11 @@
 (declare json-zip)
 
 (s/def ::loc
-  (s/with-gen (s/tuple ::any-json
+  (s/with-gen (s/tuple ::json/any
                        :com.yetanalytics.pathetic.zip.loc/ppath)
     (fn []
       (sgen/bind
-       (s/gen ::any-json)
+       (s/gen ::json/any)
        (fn [any-json]
          (sgen/elements
           (take-while (complement z/end?)
@@ -65,7 +40,7 @@
 
 
 (s/fdef json-zip
-  :args (s/cat :root ::any-json)
+  :args (s/cat :root ::json/any)
   :ret ::loc
   :fn (fn [{{root :root} :args
             [node _] :ret}]
@@ -150,6 +125,21 @@
                (take-while some?
                            (iterate z/up loc))))))
 
+(s/fdef prune
+  :args (s/cat :loc ::loc)
+  :ret ::loc)
+
+(defn prune
+  "Remove the current node, if it is a value in a map entry also remove the parent.
+   Shouldn't get called on root"
+  [loc]
+  (let [ploc (z/up loc)
+        pnode (z/node ploc)]
+    (z/remove
+     (if (map-entry? pnode)
+       ploc
+       loc))))
+
 ;; given a root and a key-path, can we return a loc at that path?
 ;; this would make up some for the inefficiency of having to walk everything
 ;; when there is a known path?
@@ -193,7 +183,7 @@
   (reduce get-child loc key-path))
 
 (s/fdef loc-in
-  :args (s/cat :root ::any-json
+  :args (s/cat :root ::json/any
                :key-path ::key-path)
   :ret (s/nilable ::loc))
 
@@ -202,13 +192,94 @@
   [root key-path]
   (-> root json-zip (get-child-in key-path)))
 
+(s/fdef stub-in
+  :args (s/cat :loc ::loc
+               :key-path ::json/key-path)
+  :ret ::loc)
+
+(defn stub-in
+  "Given a loc an key path, stub out the path if it does not exist, returning
+  a loc for the destination. If the loc does not exist, it will have the value
+  ::stub. If incorrect keys are given for the data, will throw.
+  If stub-in encounters an intermediate node of ::stub, it will replce it with
+  the proper datastructure for the key path."
+  [loc key-path]
+  (let [node (z/node loc)]
+    (if (map-entry? node)
+      (recur (-> loc z/down z/right) key-path)
+      (if-let [k (first key-path)]
+        (if (or (coll? node) (= ::stub node))
+          (do (assert (cond
+                        (map? node) (string? k)
+                        (coll? node) (number? k)
+                        :else true) "Incorrect key type for node")
+              (recur
+               (if (= ::stub node)
+                 (cond
+                   (string? k)
+                   (-> loc
+                       (z/replace
+                        (z/make-node loc
+                                     {}
+                                     [(clojure.lang.MapEntry. k
+                                                              ::stub)]))
+                       z/down)
+                   (number? k)
+                   (-> loc
+                       (z/replace
+                        (z/make-node loc
+                                     []
+                                     (repeat (inc k) ::stub)))
+                       z/down
+                       (->> (iterate z/right))
+                       (nth k)))
+                 (let [child-locs (take-while
+                                   (complement nil?)
+                                   (iterate z/right
+                                            (z/down loc)))]
+                   (if-let [[fk fv :as found] (find node k)]
+                     (if (map? node)
+                       (some
+                        (fn [cl]
+                          (when (= found (z/node cl))
+                            cl))
+                        child-locs)
+                       (nth child-locs fk))
+                     (if (map? node)
+                       (-> loc
+                           (z/append-child
+                            (clojure.lang.MapEntry. k
+                                                    ::stub))
+                           z/down
+                           z/rightmost)
+                       (let [[lc rc] (split-at k child-locs)]
+                         (-> loc
+                             (z/replace
+                              (z/make-node loc
+                                           node
+                                           (concat
+                                            (map z/node lc)
+                                            (repeat (- (inc k)
+                                                       (count lc))
+                                                      ::stub)
+                                            (map z/node rc))))
+                             z/down
+                             (->> (iterate z/right))
+                             (nth k)))))))
+               (rest key-path)))
+          (throw (ex-info "Can't path into a leaf node"
+                          {:type ::cant-path-leaf-node
+                           :loc loc
+                           :key-path key-path})))
+        loc))))
+
 (s/def ::path-map
   (s/map-of
    ::key-path
-   ::any-json))
+   ::json/any))
 
 (s/fdef json-locs
-  :args (s/cat :json ::any-json)
+  :args (s/cat :json ::json/any)
   :ret (s/every ::loc)
   :fn (fn [{locs :ret}]
         (every? (complement internal?) locs)))
@@ -223,7 +294,7 @@
        (remove internal?)))
 
 (s/fdef json->path-map
-  :args (s/cat :json ::any-json)
+  :args (s/cat :json ::json/any)
   :ret ::path-map)
 
 (defn json->path-map
@@ -236,7 +307,7 @@
 
 (s/fdef path-map->json
   :args (s/cat :path-map ::path-map)
-  :ret ::any-json)
+  :ret ::json/any)
 
 (defn path-map->json
   [path-map]

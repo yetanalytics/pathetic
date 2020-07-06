@@ -27,7 +27,7 @@
 
 (defspec k-path-is-valid-for-get-in
   (prop/for-all
-   [json (s/gen :com.yetanalytics.pathetic.zip/any-json)]
+   [json (s/gen :com.yetanalytics.pathetic.json/any)]
    (let [locs (->> json
                    json-zip
                    (iterate z/next)

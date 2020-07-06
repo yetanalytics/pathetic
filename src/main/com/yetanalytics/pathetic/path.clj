@@ -1,33 +1,8 @@
 (ns com.yetanalytics.pathetic.path
   "Given a path into an xAPI structure, return a spec from xapi-schema"
   (:require [clojure.spec.alpha :as s]
-            [xapi-schema.spec :as xs]))
-
-(s/def ::any-json
-  (s/nilable
-   (s/or :scalar
-         (s/or :string
-               string?
-               :number
-               (s/or :double
-                     (s/double-in :infinite? false :NaN? false
-                                  :max 1000.0 :min -1000.0)
-                     :int
-                     int?)
-               :boolean
-               boolean?)
-         :coll
-         (s/or :map
-               (s/map-of
-                string?
-                ::any-json
-                :gen-max 4)
-               :vector
-               (s/coll-of
-                ::any-json
-                :kind vector?
-                :into []
-                :gen-max 4)))))
+            [xapi-schema.spec :as xs]
+            [com.yetanalytics.pathetic.json :as json]))
 
 (s/def :spec-map.map-spec/keys
   qualified-keyword?)
@@ -162,7 +137,7 @@
    ::xs/language-map {:keys ::xs/language-tag
                       :vals ::xs/language-map-text}
    ::xs/extensions {:keys ::xs/iri
-                    :vals ::any-json}
+                    :vals ::json/any}
 
 
    })
@@ -228,9 +203,9 @@
                   vals-spec :vals} spec-entry]
              (assert (string? p-key) "Path key for arbitrary map must be a string")
              (if (s/valid? keys-spec p-key)
-               (if (= vals-spec ::any-json)
+               (if (= vals-spec ::json/any)
                  ;; don't loop, any path under any-json is any-json
-                 ::any-json
+                 ::json/any
                  (recur
                   vals-spec
                   (rest path)
