@@ -149,12 +149,7 @@ Any JSON but given our domain...the JSON is expected to be an xAPI Statement; se
 
 ## Usage
 
-moc "API" docs for this util lib
-
-
-### com.yetanalytics.pathetic
-
-Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seqs
+moc "API" docs for this util lib that provides idomatic Clojure core-esq fns which expect JSON-path instead of key seqs.
 
 - Examples are provided but more can be found in test namespaces
 
@@ -178,7 +173,7 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 ```
 
 
-#### parse
+### parse
 
 `ns` = `com.yetanalytics.pathetic.json-path`
 
@@ -201,7 +196,7 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 ```
 
 
-#### select-keys-at
+### select-keys-at
 
 `ns` = `com.yetanalytics.pathetic`
 
@@ -222,7 +217,7 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 ```
 
 
-#### get-at
+### get-at
 
 `ns` = `com.yetanalytics.pathetic`
 
@@ -236,7 +231,7 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 ```
 
 
-#### excise
+### excise
 
 `ns` = `com.yetanalytics.pathetic`
 
@@ -252,7 +247,7 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 ```
 
 
-#### apply-values
+### apply-values
 
 `ns` = `com.yetanalytics.pathetic`
 
