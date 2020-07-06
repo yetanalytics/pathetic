@@ -154,25 +154,6 @@ moc "API" docs for this util lib that provides idomatic Clojure core-esq fns whi
 - Examples are provided but more can be found in test namespaces
 
 
-### enumerate
-
-`ns` = `com.yetanalytics.pathetic.json-path`
-
-> "Given a JSON-path passed through `parse`, enumerate all possible branching pathways when ambigious within JSON-path"
-
-``` clojure
-
-(= (vec
-     (com.yetanalytics.pathetic.json-path/enumerate
-      (com.yetanalytics.pathetic.json-path/parse
-       "$.context.contextActivities.grouping[*]")
-      :limit 3))
-   [["context" "contextActivities" "grouping" 0]
-    ["context" "contextActivities" "grouping" 1]
-    ["context" "contextActivities" "grouping" 2]])
-```
-
-
 ### parse
 
 `ns` = `com.yetanalytics.pathetic.json-path`
@@ -193,6 +174,25 @@ moc "API" docs for this util lib that provides idomatic Clojure core-esq fns whi
    [#{"context"}
     #{"extensions"}
     #{"https://w3id.org/xapi/cmi5/context/extensions/sessionid"}])
+```
+
+
+### enumerate
+
+`ns` = `com.yetanalytics.pathetic.json-path`
+
+> "Given a JSON-path passed through `parse`, enumerate all possible branching pathways when ambigious within JSON-path"
+
+``` clojure
+
+(= (vec
+     (com.yetanalytics.pathetic.json-path/enumerate
+      (com.yetanalytics.pathetic.json-path/parse
+       "$.context.contextActivities.grouping[*]")
+      :limit 3))
+   [["context" "contextActivities" "grouping" 0]
+    ["context" "contextActivities" "grouping" 1]
+    ["context" "contextActivities" "grouping" 2]])
 ```
 
 
@@ -264,10 +264,10 @@ moc "API" docs for this util lib that provides idomatic Clojure core-esq fns whi
                     {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
                     {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})))
    (apply-values
-   stmt
-   (json-path/parse "$.context.contextActivities.category[*].id")
-   ["http://www.example.com/meetings/categories/brainstorm_sesh"
-    "http://www.example.com/meetings/categories/whiteboard_sesh"]))
+    stmt
+    (json-path/parse "$.context.contextActivities.category[*].id")
+    ["http://www.example.com/meetings/categories/brainstorm_sesh"
+     "http://www.example.com/meetings/categories/whiteboard_sesh"]))
 
 ```
 
