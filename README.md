@@ -1,5 +1,7 @@
 # pathetic
 
+# pathetic
+
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/)
 
 ## Data
@@ -167,7 +169,8 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 
 (= (vec
      (com.yetanalytics.pathetic.json-path/enumerate
-      (com.yetanalytics.pathetic.json-path/parse "$.context.contextActivities.grouping[*]")
+      (com.yetanalytics.pathetic.json-path/parse
+       "$.context.contextActivities.grouping[*]")
       :limit 3))
    [["context" "contextActivities" "grouping" 0]
     ["context" "contextActivities" "grouping" 1]
@@ -185,11 +188,16 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 
 (= (com.yetanalytics.pathetic.json-path/parse
     "$.context.contextActivities.grouping[*]")
-   [#{"context"} #{"contextActivities"} #{"grouping"} '*])
+   [#{"context"}
+    #{"contextActivities"}
+    #{"grouping"}
+    '*])
 
 (= (com.yetanalytics.pathetic.json-path/parse
     "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid']")
-   [#{"context"} #{"extensions"} #{"https://w3id.org/xapi/cmi5/context/extensions/sessionid"}])
+   [#{"context"}
+    #{"extensions"}
+    #{"https://w3id.org/xapi/cmi5/context/extensions/sessionid"}])
 ```
 
 
@@ -254,21 +262,24 @@ Provides Idomatic Clojure core-esq fns which expect JSON-path instead of key seq
 
 ``` clojure
 
-(= (update-in long-statement ["context" "contextActivities" "category"]
-                    (fn [old] (conj old
-                                    {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
-                                    {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})))
-         (apply-values long-statement
-                       (json-path/parse "$.context.contextActivities.category[*].id")
-                       ["http://www.example.com/meetings/categories/brainstorm_sesh"
-                        "http://www.example.com/meetings/categories/whiteboard_sesh"]))
+(= (update-in
+    stmt
+    ["context" "contextActivities" "category"]
+    (fn [old] (conj old
+                    {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
+                    {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})))
+   (apply-values
+   stmt
+   (json-path/parse "$.context.contextActivities.category[*].id")
+   ["http://www.example.com/meetings/categories/brainstorm_sesh"
+    "http://www.example.com/meetings/categories/whiteboard_sesh"]))
 
 ```
 
 
 ## License
 
-Copyright © 2020 Yet Analytics, Inc.
+Copyright © 2019-2020 Yet Ana
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
