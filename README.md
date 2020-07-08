@@ -1,7 +1,5 @@
 # pathetic
 
-# pathetic
-
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/)
 
 ## Data
