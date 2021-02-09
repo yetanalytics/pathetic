@@ -1,43 +1,25 @@
 (ns com.yetanalytics.pathetic.json-path
-  (:require [blancas.kern.core              :as k]
+  (:require [clojure.core.match :as m]
+            [clojure.string :as string]
+            [clojure.set :as cset]
+            [clojure.walk :as w]
+            [blancas.kern.core              :as k]
             [clojure.spec.alpha             :as s]
             [blancas.kern.lexer.basic       :as kl]
             [clojure.math.combinatorics     :as combo]
-            [com.yetanalytics.pathetic.json :as json]))
+            [com.yetanalytics.pathetic.json :as json]
+            #_[com.yetanlaytics.pathetic.zip  :as zip]
+            [instaparse.core :as insta]))
 
-(s/def ::root
-  #{'$})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Specs
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def root
-  (k/<$>
-   (constantly '$)
-   (k/sym* \$)))
+(s/def ::root #{'$})
 
-(s/def ::wildcard
-  #{'*})
+(s/def ::wildcard #{'*})
 
-(def wildcard
-  (k/<$>
-   (constantly '*)
-   (k/sym* \*)))
-
-(s/def ::keyset
-  (s/or :keys (s/every string?
-                       :type set?
-                       :into #{}
-                       :min-count 1)
-        :indices (s/every int?
-                          :type set?
-                          :into #{}
-                          :min-count 1)))
-
-(def index
-  (k/<$>
-   (fn [^String x]
-     (Long/parseLong x))
-   (k/<+>
-    (k/optional (k/sym* \-))
-    kl/dec-lit)))
+(s/def ::recursive #{'..})
 
 (s/def :range/start
   int?)
@@ -51,15 +33,16 @@
 (s/def :range/bounded? ;; was this range bounded, or does it use a MAX_VALUE?
   boolean?)
 
-(defrecord RangeSpec [start end step bounded?])
+(comment
+  (defrecord RangeSpec [start end step bounded?])
 
-(s/fdef range-spec?
-  :args (s/cat :item any?)
-  :ret boolean?)
+  (s/fdef range-spec?
+    :args (s/cat :item any?)
+    :ret boolean?)
 
-(defn range-spec?
-  [item]
-  (instance? RangeSpec item))
+  (defn range-spec?
+    [item]
+    (instance? RangeSpec item)))
 
 (s/def ::range
   (s/keys :req-un [:range/start
@@ -67,136 +50,178 @@
                    :range/step
                    :range/bounded?]))
 
-(def ^:const max-long-str
-  (str Long/MAX_VALUE))
+(s/def ::keyset
+  (s/every (s/or :key string? :index int? :range ::range)
+           :type set?
+           :into #{}
+           :min-count 1))
 
-(def index-range
-  (k/bind [start (k/option 0
-                           index)
-           _ kl/colon
-           end (k/option Long/MAX_VALUE
-                         index)
-           _ (k/optional kl/colon)
-           step (k/option 1
-                          index)]
-          (k/return
-           (->RangeSpec (if (number? start)
-                          start
-                          (Long/parseLong start))
-                        (if (number? end)
-                          end
-                          (Long/parseLong end))
+(comment
+  (def ^:const max-long-str
+    (str Long/MAX_VALUE)))
 
-                        (if (number? step)
-                          step
-                          (Long/parseLong step))
-                        ;; if the option is used, we're unbounded
-                        (if (#{Long/MAX_VALUE
-                               max-long-str} end)
-                          false
-                          true)))))
+(comment
+  (s/fdef discrete?
+    :args (s/cat :path ::json-path)
+    :ret boolean?)
 
-(s/fdef discrete?
-  :args (s/cat :path ::json-path)
-  :ret boolean?)
-
-(defn discrete?
-  "Is the path free of wildcards?"
-  [path]
-  (not
-   (some (fn [x]
-           (or (= '* x)
-               (and (range-spec? x)
-                    (not (:bounded? x)))))
-         path)))
-
-(defn escaped-by
-  [c & [charset-p]]
-  (k/>> (k/sym* c)
-        (or charset-p k/any-char)))
-
-(def escaped-char
-  (escaped-by (char 92)))
-
-(def safe-char
-  (k/none-of* (str
-               ;; double-quote
-               (char 34)
-               ;; single quote
-               (char 39)
-               ;; escape char
-               (char 92))))
-
-(def json-key
-  (k/<+>
-   (k/many
-    (k/<|>
-     escaped-char
-     safe-char))))
-
-(def json-key-lit
-  (k/<+>
-   (k/between (k/sym* \') json-key)))
-
-(defn union-of1
-  "A comma separated union of at least 1 of something.
-   Returns a set."
-  [p]
-  (k/<$>
-   set
-   (k/sep-by1 (k/sym* \,) p)))
-
-(def child-normal
-  "Normal bracket-style child"
-  (kl/brackets
-   (k/<|>
-    wildcard
-    (k/<:> index-range)
-    (union-of1 index)
-    (union-of1 json-key-lit))))
-
-(def child-dot
-  "Stupid dot syntax"
-  (k/>>
-   kl/dot
-   (k/<|>
-    ;; normal key
-    (k/<$>
-     (partial hash-set)
-     (k/<+> (k/many1 k/alpha-num)
-            ;; support full language tags
-            (k/optional (k/<+> (k/one-of* "-")
-                               (k/many1 k/alpha-num)))))
-    ;; dot wildcard
-    wildcard
-    ;; double-dot wildcard
-    (k/<$>
-     (constantly '*)
-     (k/look-ahead
-      (k/>> kl/dot
-            (k/many1 k/alpha-num)))))))
-
-
-(def json-path
-  (k/>> root
-        (k/many (k/<|>
-                 child-normal
-                 child-dot))))
+  (defn discrete?
+    "Is the path free of wildcards?"
+    [path]
+    (not
+     (some (fn [x]
+             (or (= '* x)
+                 (and (range-spec? x)
+                      (not (:bounded? x)))))
+           path))))
 
 (s/def ::json-path
-  (s/every (s/or :keyset ::keyset
-                 :wildcard ::wildcard
-                 :range ::range)))
+  (s/every (s/or :keyset    ::keyset
+                 :wildcard  ::wildcard
+                 :recursive ::recursive)))
+
+(s/def ::json-paths (s/every ::json-path))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Parser
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TODO: JSON-conformant string literals
+;; Integer and string literal regexes from:
+;; https://github.com/dchester/jsonpath/blob/master/lib/dict.js
+(def jsonpath-instaparser
+  (insta/parser
+   "jsonpaths  := jsonpath (<#'\\s'>* <'|'> <#'\\s'>* jsonpath)*;
+    jsonpath   := <root> children?;
+    <children> := child+;
+    child      := bracket-child | dot-child;
+
+    <bracket-child>   := double-dot? <'['> <#'\\s'*> bracket-content <#'\\s'*> <']'>;
+    <bracket-content> := wildcard | bracket-union;
+    bracket-union     := union-element (<#'\\s'>* <','> <#'\\s'>* union-element)*;
+    <union-element>   := int-literal | string-literal | array-slice;
+    array-slice       := int-literal? ':' int-literal? (':' int-literal?)?;
+  
+    <dot-child>   := double-dot child-body | <dot> child-body;
+    <child-body>  := wildcard | int-literal | identifier;
+    
+    identifier     := #'[a-zA-Z_]+[a-zA-Z_0-9]*';
+    int-literal    := #'-?(0|[1-9][0-9]*)';
+    string-literal := string-literal-sq | string-literal-dq
+    <string-literal-sq> := #'\\'(?:\\\\[\\'bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\\'\\\\])*\\'';
+    <string-literal-dq> := #'\"(?:\\\\[\"bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\"\\\\])*\"'
+
+    root        := '$';
+    wildcard    := '*';
+    double-dot  := '..';
+    dot         := '.';
+  "))
+
+;; ===== AST (post-parse) =====
+;; jsonpaths      := jsonpath+
+;; jsonpath       := child*
+;; child          := identifier | int-literal | string-literal |
+;;                   array-slice | bracket-union |
+;;                   wildcard | double-dot
+;; bracket-union  := #{int-literal | string-literal | array-slice ...}
+;; array-slice    := {:start int-literal
+;;                    :end int-literal
+;;                    :range int-literal
+;;                    :bounded boolean}
+;; identifier     := #{<string literal>}
+;; int-literal    := #{<integer literal>}
+;; string-literal := #{<string literal>}
+;; wildcard       := '*
+;; double-dot     := '..
+
+#_{:clj-kondo/ignore [:unresolved-symbol]}
+(defn- slice-list->slice-map [slice-list]
+  ;; "start", "end", and "step" are singleton sets as a result of w/postwalk
+  (m/match [slice-list]
+    [[":"]]
+    {:start 0 :end Long/MAX_VALUE :step 1 :bounded? false}
+    [[":" ":"]]
+    {:start 0 :end Long/MAX_VALUE :step 1 :bounded? false}
+    [[":" end]]
+    {:start 0 :end (first end) :step 1 :bounded? true}
+    [[start ":"]]
+    {:start (first start) :end Long/MAX_VALUE :step 1 :bounded? false}
+    [[start ":" end]]
+    {:start (first start) :end (first end) :step 1 :bounded? true}
+    [[start ":" end ":"]]
+    {:start (first start) :end (first end) :step 1 :bounded? true}
+    [[start ":" end ":" step]]
+    {:start (first start) :end (first end) :step (first step) :bounded? true}))
+
+;; Regex from:
+;; https://stackoverflow.com/questions/56618450/how-to-remove-matching-quotes-when-quotes-surrounds-word-that-starts-with-or
+(defn- unquote-str
+  [quoted-str]
+  (-> quoted-str
+      (string/replace #"\"([^\"]*)\"" "$1")
+      (string/replace #"\'([^\']*)\'" "$1")))
+
+(defn- str->int
+  [int-str]
+  (Integer/parseInt int-str))
+
+(defn- instaparse-node->pathetic
+  [parsed]
+  (if (coll? parsed)
+    (case (first parsed)
+      :jsonpaths  (-> parsed rest vec)
+      :jsonpath   (-> parsed rest flatten vec)
+      :child      (-> parsed rest vec)
+      :bracket-union (reduce (fn [acc elem] (if (set? elem)
+                                              (cset/union acc elem)
+                                              (conj acc elem)))
+                             #{}
+                             (rest parsed))
+      ;; Child nodes
+      :array-slice (slice-list->slice-map (apply vector (rest parsed)))
+      :identifier  #{(second parsed)}
+      :string-literal #{(-> parsed second unquote-str)}
+      :int-literal #{(-> parsed second str->int)}
+      :wildcard '*
+      :double-dot '..)
+    parsed))
+
+(defn instaparse->pathetic
+  [parsed]
+  (w/postwalk instaparse-node->pathetic parsed))
+
+(instaparse->pathetic (first (insta/parses jsonpath-instaparser "$.store.book|$.results.extensions")))
+#_(instaparse->pathetic (first (insta/parses jsonpath-instaparser "$..*.authors")))
 
 (s/fdef parse
   :args (s/cat :path string?)
-  :ret ::json-path)
+  :ret  (s/nilable ::json-paths))
 
 (defn parse
-  "Given a JSON-path, parse it into data"
-  [path]
-  (:value (k/parse json-path
-                   path)))
+  "Given a JSON-path, parse it into data. Returns a vector of parsed
+   JSON-paths, or nil if one or more paths are invalid."
+  [jsonpath-str]
+  (let [paths (->> jsonpath-str
+                   (insta/parses jsonpath-instaparser)
+                   first
+                   instaparse->pathetic)]
+    (if (not-empty (filterv empty? paths))
+      nil
+      paths)))
+
+(s/fdef parse-first
+  :args (s/cat :path string?)
+  :ret  (s/nilable ::json-path))
+
+(defn parse-first
+  "Same as parse, but returns the first parsed JSON-path, or nil if the
+   paths are invalid."
+  [jsonpath-str]
+  (-> jsonpath-str parse first))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Library functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; moved down from top lvl ns
 
@@ -206,21 +231,19 @@
   :ret (s/nilable ::json-path))
 
 (defn satisfied
-  "Given a json path and a key path, return nil if they diverge, or if they partially
-  match return a seq of the covered pattern"
+  "Given a json path and a key path, return nil if they diverge, or
+   if they partially match return a seq of the covered pattern"
   [path key-path]
   (when-let [partial-sat
              (map first
                   (take-while
-                   (fn [[p pk]]
-                     (cond
-                       (= p '*) true
-                       (set? p) (contains? p pk)
-                       :else (let [{:keys [start
-                                           end
-                                           step]} p]
-                               (some (partial = pk)
-                                     (range start end step)))))
+                   (fn [[p pk]] (cond
+                                  (= p '*)  true
+                                  (= p '..) true
+                                  (set? p)  (contains? p pk)
+                                  :else     (let [{:keys [start end step]} p]
+                                              (some (partial = pk)
+                                                    (range start end step)))))
                    (map vector
                         path
                         key-path)))]
@@ -228,7 +251,6 @@
       ;; satisfied, we can keep it
       (= path partial-sat)
       path
-
       ;; otherwise we are partial, if there is more left in key path this is
       ;; is a failure
       (not-empty
@@ -236,11 +258,6 @@
              key-path))
       nil
       :else partial-sat)))
-
-(s/fdef select-keys-at
-  :args (s/cat :path string?
-               :json ::json/any)
-  :ret ::json/any)
 
 ;; found in datassim, may need to be elsewhere
 
@@ -253,9 +270,10 @@
   :ret (s/every ::json/key-path))
 
 (defn enumerate
-  "Given a json path, return a lazy seq of concrete key paths. wildcards/ranges
-  will be enumerated up to :limit, which defaults to 10"
-  [path & {:keys [limit]}]
+  "Given a json path, return a lazy seq of concrete key paths.
+   Wildcards/recursive/ranges will be enumerated up to :limit,
+   which defaults to 10"
+  [path & {:keys [limit] :or {limit 10}}]
   (map vec
        (apply combo/cartesian-product
               (map
@@ -263,11 +281,8 @@
                  (cond
                    (set? element)
                    element
-
                    (= '* element)
-                   (if limit
-                     (range limit)
-                     (range))
+                   (if limit (range limit) (range))
                    ;; otherwise, itsa range spec
                    :else
                    (let [{:keys [start end step]} element]
@@ -290,8 +305,7 @@
          hits (for [p path-enum
                     :let [hit (get-in json p)]
                     :while (some? hit)]
-                   [p hit])
-         ]
+                [p hit])]
      (when (not-empty hits)
        (concat
         hits
