@@ -367,26 +367,33 @@
      :json  the JSON value at the JSONPath location.
      :path  the concrete JSONPath that was traversed.
      :rest  the remaining JSONPath that could not be traversed
-     :fail  if the JSONPath traversal failed (e.g. key was not found)"
+     :fail  if the JSONPath traversal failed due to missing keys/indices
+     :desc  if the previous JSONPath element was the recursive descent op"
   [json-obj json-path]
   (loop [worklist (init-queue {:json json-obj
                                :rest (seq json-path)
                                :path []
-                               :fail false})]
+                               :fail false
+                               :desc false})]
     (if-not (every? (fn [{jsn :json rst :rest}] (or (nil? jsn) (empty? rst)))
                     worklist)
-      (let [{jsn :json rst :rest pth :path fil :fail :as workitem}
+      (let [{jsn :json rst :rest pth :path dsc :desc :as workitem}
             (peek worklist)]
         (if-let [element (first rst)]
           (cond
             ;; Short circuit: if json is a primitive or nil stop traversal
             (not (coll? jsn))
-            (let [worklist' (conj (pop worklist)
-                                  {:json nil
-                                   :rest rst
-                                   :path pth
-                                   :fail fil})]
-              (recur worklist'))
+            (if dsc
+              ;; Scalar is the result of recursive descent, ignore
+              (recur (pop worklist))
+              ;; Scalar is more-or-less intentional, mark failure
+              (let [worklist' (conj (pop worklist)
+                                    {:json nil
+                                     :rest rst
+                                     :path pth
+                                     :fail true
+                                     :desc false})]
+                (recur worklist')))
             ;; Recursive descent
             (= '.. element)
             (let [desc-list (recursive-descent jsn)
@@ -396,7 +403,8 @@
                                      {:json (:json desc)
                                       :rest (rest rst)
                                       :path (vec (concat pth (:path desc)))
-                                      :fail false}))
+                                      :fail false
+                                      :desc true}))
                              (pop worklist)
                              desc-list)]
               (recur worklist'))
@@ -408,7 +416,8 @@
                                      {:json child
                                       :rest (rest rst)
                                       :path (conj pth key)
-                                      :fail false}))
+                                      :fail false
+                                      :desc false}))
                              (pop worklist)
                              jsn)]
               (recur worklist'))
@@ -421,14 +430,14 @@
                                      {:json (get jsn sub-elm)
                                       :rest (rest rst)
                                       :path (conj pth sub-elm)
-                                      :fail (not (contains? jsn sub-elm))}))
+                                      :fail (not (contains? jsn sub-elm))
+                                      :desc false}))
                              (pop worklist)
                              element')]
               (recur worklist')))
           ;; Path is exhausted; cycle work item to back of worklist
           (recur (conj (pop worklist) workitem))))
-      (seq worklist))))
-
+      (map #(dissoc % :path :desc) worklist))))
 
 (path-seqs {"universe" [{"foo" {"bar" 1}} {"baz" 2}]}
            ['* #{0 1} #{"foo"} #{"bar"}])

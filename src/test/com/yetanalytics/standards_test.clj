@@ -498,7 +498,7 @@
          (get-at {"some key" "value" "key" {"complex" "string" "primitives" [0 1]}}
                  "$.key..")))
     (is (= [{"key"         "value"
-             "another key" {"complex" ["a" 1]}}] ;; []
+             "another key" {"complex" ["a" 1]}}] 
            (get-at {"key"         "value"
                     "another key" {"complex" ["a" 1]}}
                    "$")))
