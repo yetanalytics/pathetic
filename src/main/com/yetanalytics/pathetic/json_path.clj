@@ -209,8 +209,6 @@
   [parsed]
   (w/postwalk instaparse-node->pathetic parsed))
 
-(instaparse->pathetic (insta/parse jsonpath-instaparser "$[0:2].key"))
-
 ;; Mini-monad to deal with error threading
 (defn- parse-bind
   [m f]
@@ -328,27 +326,30 @@
        :else
        children))))
 
-(defn- splice->indices
-  "Turn an array splice into a series of array indices."
+(defn- normalize-indices
+  "Normalize indices by doing the following:
+   - Turn array splices into array index sequences
+   - Turn negative array indices into positive ones"
   [keys json]
   (reduce (fn [acc elem]
-            (if (map? elem)
-              ;; Element is an array splice
-              (do
-                (assert (coll? json) "splice cannot operate on JSON primitive")
-                (let [{:keys [start end step]} elem
-                      len   (count json)
-                      start (cond (= :vec-lower start) 0
-                                  (= :vec-higher start) (dec len)
-                                  (neg-int? start) (+ len start)
-                                  :else start)
-                      end   (cond (= :vec-lower end) -1
-                                  (= :vec-higher end) len
-                                  (neg-int? end) (+ len end)
-                                  :else end)
-                      step  (if (zero? step) 1 step) ;; no infinite loops
-                      nvals (range start end step)]
-                  (vec (concat acc nvals))))
+            (cond
+              (map? elem) ;; Element is an array splice
+              (let [{:keys [start end step]} elem
+                    len   (count json)
+                    start (cond (= :vec-lower start) 0
+                                (= :vec-higher start) (dec len)
+                                (neg-int? start) (+ len start)
+                                :else start)
+                    end   (cond (= :vec-lower end) -1
+                                (= :vec-higher end) len
+                                (neg-int? end) (+ len end)
+                                :else end)
+                    step  (if (zero? step) 1 step) ;; no infinite loops
+                    nvals (range start end step)]
+                (vec (concat acc nvals)))
+              (neg-int? elem)
+              (conj acc (+ (count json) elem))
+              :else
               (conj acc elem)))
           []
           keys))
@@ -423,7 +424,7 @@
               (recur worklist'))
             ;; Vector of keys/indices/slices
             (vector? element)
-            (let [element'  (splice->indices element jsn)
+            (let [element'  (normalize-indices element jsn)
                   worklist' (reduce
                              (fn [acc sub-elm]
                                (conj acc
