@@ -3,9 +3,7 @@
             [clojure.string :as string]
             [clojure.set :as cset]
             [clojure.walk :as w]
-            [blancas.kern.core              :as k]
             [clojure.spec.alpha             :as s]
-            [blancas.kern.lexer.basic       :as kl]
             [clojure.math.combinatorics     :as combo]
             [com.yetanalytics.pathetic.json :as json]
             #_[com.yetanlaytics.pathetic.zip  :as zip]
@@ -115,7 +113,7 @@
     <child-body>  := wildcard | identifier;
     
     identifier     := #'[a-zA-Z0-9_\\-]+';
-    int-literal    := #'-?(0|[1-9][0-9]*)';
+    int-literal    := #'-?[0-9]+';
     string-literal := string-literal-sq | string-literal-dq
     <string-literal-sq> := #'\\'(?:\\\\[\\'bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\\'\\\\])*\\'';
     <string-literal-dq> := #'\"(?:\\\\[\"bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\"\\\\])*\"'
@@ -145,28 +143,37 @@
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (defn- slice-list->slice-map [slice-list]
-  ;; "start", "end", and "step" are singleton sets as a result of w/postwalk
+  ;; "start", "end", and "step" are singleton vectors as a result of w/postwalk
   (m/match [slice-list]
     [[":"]]
-    {:start 0 :end Long/MAX_VALUE :step 1 :bounded? false}
+    {:start :vec-lower :end :vec-higher :step 1}
     [[":" ":"]]
-    {:start 0 :end Long/MAX_VALUE :step 1 :bounded? false}
-    [[":" end]]
-    {:start 0 :end (first end) :step 1 :bounded? true}
-    [[start ":" ":" step]]
-    {:start (first start) :end Long/MAX_VALUE :step (first step) :bounded? false}
-    [[":" ":" step]]
-    {:start 0 :end Long/MAX_VALUE :step (first step) :bounded? false}
-    [[":" end ":" step]]
-    {:start 0 :end (first end) :step (first step) :bounded? true}
-    [[start ":"]]
-    {:start (first start) :end Long/MAX_VALUE :step 1 :bounded? false}
-    [[start ":" end]]
-    {:start (first start) :end (first end) :step 1 :bounded? true}
-    [[start ":" end ":"]]
-    {:start (first start) :end (first end) :step 1 :bounded? true}
-    [[start ":" end ":" step]]
-    {:start (first start) :end (first end) :step (first step) :bounded? true}))
+    {:start :vec-lower :end :vec-higher :step 1}
+    [[[start] ":"]]
+    {:start start :end :vec-higher :step 1}
+    [[":" [end]]]
+    {:start :vec-lower :end end :step 1}
+    [[[start] ":" [end]]]
+    {:start start :end end :step 1}
+    [[[start] ":" [end] ":"]]
+    {:start start :end end :step 1}
+    ;; Variable steps
+    [[":" ":" [step]]]
+    (if (pos-int? step)
+      {:start :vec-lower :end :vec-higher :step step}
+      {:start :vec-higher :end :vec-lower :step step})
+    [[[start] ":" ":" [step]]]
+    (if (pos-int? step)
+      {:start start :end :vec-higher :step step}
+      {:start start :end :vec-lower :step step})
+    [[":" [end] ":" [step]]]
+    (if (pos-int? step)
+      {:start :vec-lower :end end :step step}
+      {:start :vec-higher :end end :step step})
+    [[[start] ":" [end] ":" [step]]]
+    {:start start :end end :step step}
+    :else
+    (throw (ex-info "cannot process array slice" {:array-slice slice-list}))))
 
 ;; Regex from:
 ;; https://stackoverflow.com/questions/56618450/how-to-remove-matching-quotes-when-quotes-surrounds-word-that-starts-with-or
@@ -185,19 +192,15 @@
   [parsed]
   (if (coll? parsed)
     (case (first parsed)
-      :jsonpaths  (-> parsed rest vec)
-      :jsonpath   (-> parsed rest flatten vec)
-      :child      (-> parsed rest vec)
-      :bracket-union (reduce (fn [acc elem] (if (set? elem)
-                                              (cset/union acc elem)
-                                              (conj acc elem)))
-                             #{}
-                             (rest parsed))
+      :jsonpaths  (->> parsed rest vec)
+      :jsonpath   (->> parsed rest (apply concat) vec)
+      :child      (->> parsed rest vec)
+      :bracket-union (-> parsed rest flatten vec)
       ;; Child nodes
       :array-slice (slice-list->slice-map (apply vector (rest parsed)))
-      :identifier  #{(second parsed)}
-      :string-literal #{(-> parsed second unquote-str)}
-      :int-literal #{(-> parsed second str->int)}
+      :identifier  [(second parsed)]
+      :string-literal [(-> parsed second unquote-str)]
+      :int-literal [(-> parsed second str->int)]
       :wildcard '*
       :double-dot '..)
     parsed))
@@ -206,7 +209,7 @@
   [parsed]
   (w/postwalk instaparse-node->pathetic parsed))
 
-(insta/parse jsonpath-instaparser "$.store.book")
+(instaparse->pathetic (insta/parse jsonpath-instaparser "$[0:2].key"))
 
 ;; Mini-monad to deal with error threading
 (defn- parse-bind
@@ -238,7 +241,6 @@
   (let [parse-res (parse jsonpath-str)]
     (parse-bind parse-res first)))
 
-(parse "$['\u4E0A\u4E0B']")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Library functions
@@ -327,22 +329,28 @@
        children))))
 
 (defn- splice->indices
-  "Extract the indices of a given array splice."
+  "Turn an array splice into a series of array indices."
   [keys json]
   (reduce (fn [acc elem]
-            (if (map? elem) ;; is the element an array splice?
+            (if (map? elem)
+              ;; Element is an array splice
               (do
-                (assert (vector? json) "splice cannot operate on a non-list")
-                (let [limit
-                      (count json)
-                      {:keys [start end step bounded?]}
-                      elem]
-                  (cset/union
-                   (disj acc elem)
-                   (into #{} (take (if bounded? end limit)
-                                   (range start end step))))))
+                (assert (coll? json) "splice cannot operate on JSON primitive")
+                (let [{:keys [start end step]} elem
+                      len   (count json)
+                      start (cond (= :vec-lower start) 0
+                                  (= :vec-higher start) (dec len)
+                                  (neg-int? start) (+ len start)
+                                  :else start)
+                      end   (cond (= :vec-lower end) -1
+                                  (= :vec-higher end) len
+                                  (neg-int? end) (+ len end)
+                                  :else end)
+                      step  (if (zero? step) 1 step) ;; no infinite loops
+                      nvals (range start end step)]
+                  (vec (concat acc nvals))))
               (conj acc elem)))
-          #{}
+          []
           keys))
 
 (defn- init-queue [init]
@@ -404,16 +412,16 @@
                              (pop worklist)
                              jsn)]
               (recur worklist'))
-            ;; Union of keys/indices/slices
-            (set? element)
+            ;; Vector of keys/indices/slices
+            (vector? element)
             (let [element'  (splice->indices element jsn)
                   worklist' (reduce
-                             (fn [acc set-elm]
+                             (fn [acc sub-elm]
                                (conj acc
-                                     {:json (get jsn set-elm)
+                                     {:json (get jsn sub-elm)
                                       :rest (rest rst)
-                                      :path (conj pth set-elm)
-                                      :fail (not (contains? jsn set-elm))}))
+                                      :path (conj pth sub-elm)
+                                      :fail (not (contains? jsn sub-elm))}))
                              (pop worklist)
                              element')]
               (recur worklist')))

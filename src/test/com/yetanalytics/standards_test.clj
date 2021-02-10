@@ -44,62 +44,54 @@
   (testing "get-at function on dot notation"
     (is (= ["value"]
            (get-at {"key" "value"} "$.key")))
-    (is (= [] 
+    (is (= []
            (get-at [0 1] "$.key")))
-    (is (= [nil] 
+    (is (= [nil]
            (get-at [0 1] "$.key" :return-missing? true)))
     (is (= [["first" "second"]]
            (get-at {"key" ["first" "second"]} "$.key")))
-    (is (= [] 
+    (is (= []
            (get-at [{"id" 2}] "$.key")))
-    (is (= [nil] 
+    (is (= [nil]
            (get-at [{"id" 2}] "$.key" :return-missing? true)))
     (is (= [{}]
            (get-at {"key" {}} "$.key")))
     (is (= [nil]
            (get-at {"key" nil} "$.key")))
-    (is (= [] 
+    (is (= []
            (get-at {"key" "value"} "$.missing")))
     (is (= [nil]
            (get-at {"key" "value"} "$.missing" :return-missing? true)))
-    (is (= ["ey" "bee"]
-           (get-at [{"key" "ey"} {"key" "bee"} {"key" "see"}] "$[0:2].key")))
     #_(is (= [42 200 500] ;; Original was [200 42 500]
-           (get-at {"k"   [{"key" "some value"}, {"key" 42}]
-                    "kk"  [[{"key" 100} {"key" 200} {"key" 300}]
-                           [{"key" 400} {"key" 500} {"key" 600}]]
-                    "key" [0 1]}
-                   "$..[1].key")))
-    (is (= [1 1] 
+             (get-at {"k"   [{"key" "some value"}, {"key" 42}]
+                      "kk"  [[{"key" 100} {"key" 200} {"key" 300}]
+                             [{"key" 400} {"key" 500} {"key" 600}]]
+                      "key" [0 1]}
+                     "$..[1].key")))
+    (is (= [1 1]
            (get-at [{"a" 1} {"a" 1}] "$[*].a")))
     (is (= [1]
            (get-at [{"a" 1} {"a" 1}] "$[*].a" :return-duplicates? false)))
     (is (= [1]
            (get-at [{"a" 1}] "$[*].a")))
-    (is (= [1] 
+    (is (= [1]
            (get-at [{"a" 1} {"b" 1}] "$[*].a")))
     (is (= [1 nil]
            (get-at [{"a" 1} {"b" 1}] "$[*].a" :return-missing? true)))
     ;; Original order: ["russian dolls" "something" "top" "value" {"key" "russian dolls"}]
     #_(is (= ["top" "value" "something" {"key" "russian dolls"} "russian dolls"]
-           (get-at {"object" {"key"   "value"
-                              "array" [{"key" "something"}
-                                       {"key" {"key" "russian dolls"}}]}
-                    "key"    "top"}
-                   "$..key")))
+             (get-at {"object" {"key"   "value"
+                                "array" [{"key" "something"}
+                                         {"key" {"key" "russian dolls"}}]}
+                      "key"    "top"}
+                     "$..key")))
     ;; Original order: [12.99 19.95 22.99 8.95 8.99]
     #_(is (= [8.95 12.99 8.99 22.99 19.95]
-           (get-at store-example "$.store..price")))
+             (get-at store-example "$.store..price")))
     #_(is (= [nil 8.95 12.99 8.99 22.99 19.95]
-           (get-at store-example "$.store..price" :return-missing? true)))
+             (get-at store-example "$.store..price" :return-missing? true)))
     (is (= ["ey" "see"]
            (get-at [{"key" "ey"} {"key" "bee"} {"key" "see"}] "$[0,2].key")))
-    (is (= ["other value" "value"] ;; Original order: ["value" "other value"]
-           (get-at {"one"   {"key" "value"}
-                    "two"   {"k" "v"}
-                    "three" {"some" "more"
-                             "key"  "other value"}}
-                   "$['one','three'].key")))
     (is (= ["value"]
            (get-at {"key-dash" "value"} "$.key-dash")))
     (is (parse-failed?
@@ -122,19 +114,19 @@
          (get-at {"上下" "value"} "$.\u4E0A\u4E0B")))
     (is (= [] ;; No consensus, we treat "2" as an identifier
            (get-at ["first" "second" "third" "fourth" "fifth"] "$.2")))
-    (is (= ["second"] 
+    (is (= ["second"]
            (get-at {"a" "first" "2" "second" "c" "third"} "$.2")))
     (is (= [] ;; No consensus
            (get-at ["first" "second" "third" "fourth" "fifth"] "$.-1")))
     (is (parse-failed? ;; No consensus, JS result
          (get-at {"key" "value"  "'key'" 42} "$.'key'")))
     #_(is (parse-failed? ;; No consensus, JS result
-         (get-at {"object" {"key"   "value"
-                            "'key'" 100
-                            "array" [{"key"   "something"
-                                      "'key'" 0}
-                                     {"key"   {"key" "russian dolls"}
-                                      "'key'" {"'key'" 99}}]}
+           (get-at {"object" {"key"   "value"
+                              "'key'" 100
+                              "array" [{"key"   "something"
+                                        "'key'" 0}
+                                       {"key"   {"key" "russian dolls"}
+                                        "'key'" {"'key'" 99}}]}
                     "key"    "top"
                     "'key'"  42}
                    "$..'key'")))
@@ -160,14 +152,14 @@
     (is (= [1 2 3 4 5 6] (get-at [[1 2 3] [4 5 6]] "$.*.*")))
     ;; ["value" {"complex" "string", "primitives" [0 1]} nil "string" [0 1] 0 1]
     #_(is (= ["string" "value" 0 1 [0 1] {"complex" "string" "primitives" [0 1]}]
-           (get-at {"key"         "value"
-                    "another key" {"complex"    "string"
-                                   "primitives" [0 1]}}
-                   "$..*")))
+             (get-at {"key"         "value"
+                      "another key" {"complex"    "string"
+                                     "primitives" [0 1]}}
+                     "$..*")))
     #_(is (= [40 42 nil] ;; [40 nil 42]
-           (get-at [40 nil 42] "$..*")))
+             (get-at [40 nil 42] "$..*")))
     #_(is (= [nil]
-           (get-at 42 "$..*")))
+             (get-at 42 "$..*")))
     (is (parse-failed?
          (get-at {"a" 1 "$a" 2} "$a")))
     (is (parse-failed?
@@ -184,13 +176,13 @@
            (get-at {"key" "value"} "$['missing']")))
     ;; ["first" nil "first nested" {"nested" ["deepest" "second"]} "deepest" "more"]
     #_(is (= ["deepest" "first nested" "first" "more" {"nested" ["deepest" "second"]}]
-           (get-at ["first" {"key" ["first nested"
-                                    {"more" [{"nested" ["deepest" "second"]}
-                                             ["more" "values"]]}]}]
-                   "$..[0]")))
-    (is (= [] 
+             (get-at ["first" {"key" ["first nested"
+                                      {"more" [{"nested" ["deepest" "second"]}
+                                               ["more" "values"]]}]}]
+                     "$..[0]")))
+    (is (= []
            (get-at {"ü" 42} "$['ü']")))
-    (is (= [nil] 
+    (is (= [nil]
            (get-at {"ü" 42} "$['ü']" :return-missing? true)))
     (is (= ["42"]
            (get-at {"one" {"key" "value"}
@@ -206,28 +198,28 @@
     (is (= [42]
            (get-at {"" 42, "''" 123 "\"\"" 222} "$[\"\"]")))
     ;; Int array subscripts (indices)
-    (is (= [] 
+    (is (= []
            (get-at ["one element"] "$[-2]")))
-    (is (= [nil] 
+    (is (= [nil]
            (get-at ["one element"] "$[-2]" :return-missing? true)))
     (is (= ["third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[2]")))
-    (is (= [] 
+    (is (= []
            (get-at {"0" "value"} "$[0]")))
-    (is (= [nil] 
+    (is (= [nil]
            (get-at {"0" "value"} "$[0]" :return-missing? true)))
-    (is (= [] 
+    (is (= []
            (get-at ["one element"] "$[1]")))
-    (is (= [nil] 
+    (is (= [nil]
            (get-at ["one element"] "$[1]" :return-missing? true)))
     #_(is (= [] ;; [nil]
-           (get-at "Hello World" "$[0]")))
-    (is (= [3] 
+             (get-at "Hello World" "$[0]")))
+    (is (= [3]
            (get-at [[1] [2 3]] "$.*[1]")))
     (is (= [nil 3]
            (get-at [[1] [2 3]] "$.*[1]" :return-missing? true)))
     #_(is (= ["third"] ;; []
-           (get-at ["first" "second" "third"] "$[-1]")))
+             (get-at ["first" "second" "third"] "$[-1]")))
     (is (= ["first"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0]")))
     ;; Special characters as array subscripts
@@ -289,14 +281,16 @@
                    "$[*]")))
     (is (= [1 2 "a" "b"]
            (get-at [[1 2] ["a" "b"] [0, 0]] "$[0:2][*]")))
+    (is (= ["ey" "bee"]
+           (get-at [{"key" "ey"} {"key" "bee"} {"key" "see"}] "$[0:2].key")))
     (is (= [42]
            (get-at [{"bar" [42]}] "$[*].bar[*]")))
     ;; ["value" {"complex" "string", "primitives" [0 1]} nil "string" [0 1] 0 1]
     #_(is (= ["string" "value" 0 1 [0 1] {"complex" "string" "primitives" [0 1]}]
-           (get-at {"key"         "value"
-                    "another key" {"complex"    "string"
-                                   "primitives" [0 1]}}
-                   "$..[*]")))
+             (get-at {"key"         "value"
+                      "another key" {"complex"    "string"
+                                     "primitives" [0 1]}}
+                     "$..[*]")))
     ;; Pathological json-path strings
     ;; In cases with no consensus, follow JS jsonpath library
     (is (parse-failed?
@@ -315,28 +309,32 @@
                   "two.some" "42"}
                  "$[two.some]")))
     (is (parse-failed?
-           (get-at {"key" "value"} "$[key]")))
+         (get-at {"key" "value"} "$[key]")))
     (is (parse-failed?
          (get-at {"key"   "value"
                   "other" {"key" [{"key" 42}]}}
                  "$.['key']")))
     (is (parse-failed?
-           (get-at {"key"   "value"
-                    "other" {"key" [{"key" 42}]}}
-                   "$.[\"key\"]")))
+         (get-at {"key"   "value"
+                  "other" {"key" [{"key" 42}]}}
+                 "$.[\"key\"]")))
     (is (parse-failed?
-           (get-at {"key"   "value"
-                    "other" {"key" [{"key" 42}]}}
-                   "$.[key]")))))
+         (get-at {"key"   "value"
+                  "other" {"key" [{"key" 42}]}}
+                 "$.[key]")))))
 
 (deftest get-at-test-union
   (testing "get-at function on union operator"
     (is (= ["first" "second"]
            (get-at ["first" "second" "third"] "$[0,1]")))
-    (is (= ["a" "a"] ;; ["a"]
+    (is (= ["a" "a"]
            (get-at ["a"] "$[0,0]")))
-    (is (= [1 1] ;; [1] NO CONSENSUS
+    (is (= ["a"]
+           (get-at ["a"] "$[0,0]" :return-duplicates? false)))
+    (is (= [1 1] ;; no consensus, but this is what most implementations return
            (get-at {"a" 1} "$['a','a']")))
+    (is (= [1]
+           (get-at {"a" 1} "$['a','a']" :return-duplicates? false)))
     (is (= ["value" "entry"]
            (get-at {"key" "value" "another" "entry"} "$['key','another']")))
     (is (= ["value"]
@@ -345,52 +343,59 @@
            (get-at {"key" "value" "another" "entry"}
                    "$['missing','key']"
                    :return-missing? true)))
-    (is (= ["cc1" "dd1" "cc2" "dd2"] ;; out of order
+    (is (= ["cc1" "dd1" "cc2" "dd2"]
            (get-at [{"c" "cc1" "d" "dd1" "e" "ee1"}
                     {"c" "cc2" "d" "dd2" "e" "ee2"}]
                    "$[:]['c','d']")))
-    (is (= ["cc1" "dd1"] ;; out of order
+    (is (= ["cc1" "dd1"]
            (get-at [{"c" "cc1" "d" "dd1" "e" "ee1"}
                     {"c" "cc2" "d" "dd2" "e" "ee2"}]
                    "$[0]['c','d']")))
-    (is (= ["cc1" "dd1" "cc2" "dd2"] ;; out of order
+    (is (= ["cc1" "dd1" "cc2" "dd2"]
            (get-at [{"c" "cc1" "d" "dd1" "e" "ee1"}
                     {"c" "cc2" "d" "dd2" "e" "ee2"}]
                    "$.*['c','d']")))
-    (is (= ["cc1" "cc2" "cc3" "cc5" "dd1" "dd2" "dd4"] ;; [nil "dd1" "cc1" "cc2" "dd2" "cc3" "dd4" "cc5"] NO CONSENSUS
-           (get-at [{"c" "cc1" "d" "dd1" "e" "ee1"}
-                    {"c" "cc2" "child" {"d" "dd2"}}
-                    {"c" "cc3"}
-                    {"d" "dd4"}
-                    {"child" {"c" "cc5"}}]
-                   "$..['c','d']")))
-    (is (= [5 2] ;; [2 5]
+    #_(is (= ["cc1" "cc2" "cc3" "cc5" "dd1" "dd2" "dd4"] ;; [nil "dd1" "cc1" "cc2" "dd2" "cc3" "dd4" "cc5"] NO CONSENSUS
+             (get-at [{"c" "cc1" "d" "dd1" "e" "ee1"}
+                      {"c" "cc2" "child" {"d" "dd2"}}
+                      {"c" "cc3"}
+                      {"d" "dd4"}
+                      {"child" {"c" "cc5"}}]
+                     "$..['c','d']")))
+    (is (= [5 2]
            (get-at [1 2 3 4 5] "$[4,1]")))
-    (is (= ["string" "string" nil true false false "string" 5.4] ;; ["string" nil true false 5.4] NO CONSENSUS
+    (is (= ["string" "string" nil true false false "string" 5.4]
            (get-at {"a" ["string" nil true]
                     "b" [false "string" 5.4]}
                    "$.*[0,:5]")))
-    (is (= [2 3 5] ;; [2 5 3] NO CONSENSUS
+    (is (= ["value" "other value"]
+           (get-at {"one"   {"key" "value"}
+                    "two"   {"k" "v"}
+                    "three" {"some" "more"
+                             "key"  "other value"}}
+                   "$['one','three'].key")))
+    (is (= [2 3 5] ;; no consensus
            (get-at [1 2 3 4 5] "$[1:3,4]")))
     (is (= ["first" "second"]
            (get-at ["first" "second" "third"] "$[ 0 , 1 ]")))
     (is (parse-failed?
          (get-at ["first" "second" "third" "forth" "fifth"] "$[*,1]")))))
 
-;; Skip the large number tests for performance reasons
+;; NOTE: Skip the large number tests for performance reasons
+;; NOTE: If no consensus exists, follow Python array slicing output
 
 (deftest get-at-test-array-slice
   (testing "get-at function on array slicing"
     ;; Array slice
     (is (= ["second" "third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[1:3]")))
-    (is (= ["first" "second" "third" "forth" "fifth"] ;; out of order
+    (is (= ["first" "second" "third" "fourth" "fifth"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:5]")))
-    (is (= [] 
+    (is (= []
            (get-at ["first" "second" "third"] "$[7:10]")))
     (is (= [nil nil nil]
            (get-at ["first" "second" "third"] "$[7:10]" :return-missing? true)))
-    (is (= [] ;; Throws exception
+    (is (= []
            (get-at {":"    42
                     "more" "string"
                     "a"    1
@@ -398,51 +403,60 @@
                     "c"    3
                     "1:3"  "nice"}
                    "$[1:3]")))
+    (is (= [nil nil]
+           (get-at {":"    42
+                    "more" "string"
+                    "a"    1
+                    "b"    2
+                    "c"    3
+                    "1:3"  "nice"}
+                   "$[1:3]"
+                   :return-missing? true)))
     (is (= ["second" "third"]
            (get-at ["first" "second" "third"] "$[1:10]")))
     (is (= ["second" "third" nil nil nil nil nil nil nil]
            (get-at ["first" "second" "third"] "$[1:10]" :return-missing? true)))
-    ;; Array slice w/ negative numbers
+    ;; Array slice w/ negative bounds
     (is (= []
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:-5]")))
     (is (= []
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:-4]")))
-    (is (= [4] ;; []
+    (is (= [4] 
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:-3]")))
-    (is (= [] 
+    (is (= []
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:2]")))
-    (is (= [nil nil]
-           (get-at [2 "a" 4 5 100 "nice"] "$[-4:2]" :return-missing? true)))
-    (is (= [4] ;; [nil]
+    (is (= [4] 
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:3]")))
-    (is (= [] ;; NO CONSENSUS
+    ;; Array slice w/ negative step size
+    ;; None have a consensus; follow Python
+    (is (= ["fourth" "second"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[3:0:-2]")))
-    (is (= [] ;; [nil] NO CONSENSUS
+    (is (= ["fifth"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[7:3:-1]")))
-    (is (= [] ;; NO CONSENSUS
+    (is (= []
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:3:-2]")))
     ;; Array slicing w/ steps and w/o bounds
-    (is (= ["fifth" "third" "first"] ;; [] NO CONSENSUS
+    (is (= ["fifth" "third" "first"] ;; no consensus, follow Python
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[::-2]")))
-    (is (= ["second" "third" "fourth" "fifth"] ;; [... nil]
+    (is (= ["second" "third" "fourth" "fifth"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[1:]")))
-    (is (= ["fourth" "third" "second" "first"] ;; [] NO CONSENSUS
+    (is (= ["fourth" "third" "second" "first"] ;; no consensus, follow Python
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[3::-1]")))
     (is (= ["first" "second"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[:2]")))
     (is (= ["first" "second"]
            (get-at ["first" "second"] "$[:]")))
-    (is (= [] ;; Throws exception
+    (is (= []
            (get-at {":" 42 "more" "string"} "$[:]")))
     (is (= ["first" "second"]
            (get-at ["first" "second"] "$[::]")))
-    (is (= ["fifth" "fourth"] ;; [] NO CONSENSUS
+    (is (= ["fifth" "fourth"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[:2:-1]")))
     (is (= []
            (get-at [2 "a" 4 5 100 "nice"] "$[3:-4]")))
     (is (= []
            (get-at [2 "a" 4 5 100 "nice"] "$[3:-3]")))
-    (is (= [5] ;; []
+    (is (= [5] 
            (get-at [2 "a" 4 5 100 "nice"] "$[3:-2]")))
     (is (= []
            (get-at ["first" "second" "third" "forth"] "$[2:1]")))
@@ -450,26 +464,26 @@
            (get-at ["first" "second"] "$[0:0]")))
     (is (= ["first"]
            (get-at ["first" "second"] "$[0:1]")))
-    (is (= ["third"] ;; ["first" "second" nil]
+    (is (= ["third"]
            (get-at ["first" "second" "third"] "$[-1:]")))
-    (is (= ["second" "third"] ;; ["first" nil]
+    (is (= ["second" "third"]
            (get-at ["first" "second" "third"] "$[-2:]")))
-    (is (= ["first" "second" "third"] ;; [nil]
+    (is (= ["first" "second" "third"] 
            (get-at ["first" "second" "third"] "$[-4:]")))
     (is (= ["first" "third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:3:2]")))
-    (is (= ["first" "second" "third"] ;; ["first"]
+    (is (= ["first" "second" "third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:3:0]")))
     (is (= ["first" "second" "third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:3:1]")))
-    (is (= [10 20] ;; []
+    (is (= [10 20] 
            (get-at [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25]
-                   "$[010:020:030]")))
+                   "$[010:024:010]")))
     (is (= ["first" "third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:4:2]")))
     (is (= ["second" "third"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[1:3]")))
-    (is (= ["first" "third" "fifth"] ;; ["first" "fifth" nil "third"]
+    (is (= ["first" "third" "fifth"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[::2]")))))
 
 (deftest get-at-test-misc
@@ -488,9 +502,9 @@
            (get-at {"key"         "value"
                     "another key" {"complex" ["a" 1]}}
                    "$")))
-    (is (= [42] 
+    (is (= [42]
            (get-at 42 "$")))
-    (is (= [false] 
+    (is (= [false]
            (get-at false "$")))
-    (is (= [true] 
+    (is (= [true]
            (get-at true "$")))))
