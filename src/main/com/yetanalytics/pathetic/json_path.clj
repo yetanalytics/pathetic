@@ -82,12 +82,21 @@
 
 (s/def ::json-paths (s/every ::json-path))
 
+;; Instaparse parsing failures
+
+(s/def ::tag keyword?)
+(s/def ::expecting any?) ;; Just need that keyword to exist
+(s/def ::reason (s/coll-of (s/keys :req-un [::tag ::expecting])))
+(s/def ::index int?)
+
+(s/def ::parse-failure (s/keys :req-un [::index ::reason]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parser
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; TODO: JSON-conformant string literals
-;; Integer and string literal regexes from:
+;; Integer and string literal regexes inspired from:
 ;; https://github.com/dchester/jsonpath/blob/master/lib/dict.js
 (def jsonpath-instaparser
   (insta/parser
@@ -103,9 +112,9 @@
     array-slice       := int-literal? ':' int-literal? (':' int-literal?)?;
   
     <dot-child>   := double-dot child-body | <dot> child-body;
-    <child-body>  := wildcard | int-literal | identifier;
+    <child-body>  := wildcard | identifier;
     
-    identifier     := #'[a-zA-Z_]+[a-zA-Z_0-9]*';
+    identifier     := #'[a-zA-Z0-9_\\-]+';
     int-literal    := #'-?(0|[1-9][0-9]*)';
     string-literal := string-literal-sq | string-literal-dq
     <string-literal-sq> := #'\\'(?:\\\\[\\'bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\\'\\\\])*\\'';
@@ -144,6 +153,12 @@
     {:start 0 :end Long/MAX_VALUE :step 1 :bounded? false}
     [[":" end]]
     {:start 0 :end (first end) :step 1 :bounded? true}
+    [[start ":" ":" step]]
+    {:start (first start) :end Long/MAX_VALUE :step (first step) :bounded? false}
+    [[":" ":" step]]
+    {:start 0 :end Long/MAX_VALUE :step (first step) :bounded? false}
+    [[":" end ":" step]]
+    {:start 0 :end (first end) :step (first step) :bounded? true}
     [[start ":"]]
     {:start (first start) :end Long/MAX_VALUE :step 1 :bounded? false}
     [[start ":" end]]
@@ -163,7 +178,8 @@
 
 (defn- str->int
   [int-str]
-  (Integer/parseInt int-str))
+  ;; Clojure uses Java longs, not ints
+  (Long/parseLong int-str))
 
 (defn- instaparse-node->pathetic
   [parsed]
@@ -190,34 +206,39 @@
   [parsed]
   (w/postwalk instaparse-node->pathetic parsed))
 
-(instaparse->pathetic (first (insta/parses jsonpath-instaparser "$.store.book|$.results.extensions")))
-#_(instaparse->pathetic (first (insta/parses jsonpath-instaparser "$..*.authors")))
+(insta/parse jsonpath-instaparser "$.store.book")
+
+;; Mini-monad to deal with error threading
+(defn- parse-bind
+  [m f]
+  (if-not (s/valid? ::parse-failure m) (f m) m))
 
 (s/fdef parse
   :args (s/cat :path string?)
-  :ret  (s/nilable ::json-paths))
+  :ret  (s/or :success ::json-paths
+              :failure ::parse-failure))
 
 (defn parse
   "Given a JSON-path, parse it into data. Returns a vector of parsed
-   JSON-paths, or nil if one or more paths are invalid."
+   JSON-paths, or the first error map if one or more paths are
+   invalid."
   [jsonpath-str]
-  (let [paths (->> jsonpath-str
-                   (insta/parses jsonpath-instaparser)
-                   first
-                   instaparse->pathetic)]
-    (if (not-empty (filterv empty? paths))
-      nil
-      paths)))
+  (let [parse-res (insta/parse jsonpath-instaparser jsonpath-str)]
+    (parse-bind parse-res instaparse->pathetic)))
 
 (s/fdef parse-first
   :args (s/cat :path string?)
-  :ret  (s/nilable ::json-path))
+  :ret  (s/or :success ::json-path
+              :failure ::parse-failure))
 
 (defn parse-first
   "Same as parse, but returns the first parsed JSON-path, or nil if the
    paths are invalid."
   [jsonpath-str]
-  (-> jsonpath-str parse first))
+  (let [parse-res (parse jsonpath-str)]
+    (parse-bind parse-res first)))
+
+(parse "$['\u4E0A\u4E0B']")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Library functions
@@ -261,99 +282,214 @@
 
 ;; found in datassim, may need to be elsewhere
 
-(s/def :enumerate/limit
-  number?)
+(comment
+  (s/def :enumerate/limit
+    number?)
 
-(s/fdef enumerate
-  :args (s/cat :path ::json-path
-               :options (s/keys* :opt-un [:enumerate/limit]))
-  :ret (s/every ::json/key-path))
+  (s/fdef enumerate
+    :args (s/cat :path ::json-path
+                 :options (s/keys* :opt-un [:enumerate/limit]))
+    :ret (s/every ::json/key-path))
 
-(defn enumerate
-  "Given a json path, return a lazy seq of concrete key paths.
+  (defn enumerate
+    "Given a json path, return a lazy seq of concrete key paths.
    Wildcards/recursive/ranges will be enumerated up to :limit,
    which defaults to 10"
-  [path & {:keys [limit] :or {limit 10}}]
-  (map vec
-       (apply combo/cartesian-product
-              (map
-               (fn [element]
-                 (cond
-                   (set? element)
-                   element
-                   (= '* element)
-                   (if limit (range limit) (range))
+    [path & {:keys [limit] :or {limit 10}}]
+    (map vec
+         (apply combo/cartesian-product
+                (map
+                 (fn [element]
+                   (cond
+                     (set? element)
+                     element
+                     (= '* element)
+                     (if limit (range limit) (range))
                    ;; otherwise, itsa range spec
-                   :else
-                   (let [{:keys [start end step]} element]
-                     (cond->> (range start end step)
-                       limit (take limit)))))
-               path))))
+                     :else
+                     (let [{:keys [start end step]} element]
+                       (cond->> (range start end step)
+                         limit (take limit)))))
+                 path)))))
 
-(s/fdef path-seq
-  :args (s/cat :json ::json/any
-               :path ::json-path)
-  :ret (s/every (s/tuple ::json/key-path
-                         ::json/any)))
+(defn- recursive-descent
+  "Perform the recursive descent operation (\"..\" in JSONPath syntax).
+   Returns all possible sub-structures of a JSON data structure."
+  ([json] (recursive-descent json [] []))
+  ([json path children]
+   (let [children (conj children {:json json :path path})]
+     (cond
+       (coll? json)
+       (reduce-kv (fn [acc k v] (recursive-descent v (conj path k) acc))
+                  children
+                  json)
+       :else
+       children))))
 
-(defn path-seq*
-  [json path]
-  (lazy-seq
-   (let [path-enum (map vec
-                        (apply combo/cartesian-product
-                               path))
-         hits (for [p path-enum
-                    :let [hit (get-in json p)]
-                    :while (some? hit)]
-                [p hit])]
-     (when (not-empty hits)
-       (concat
-        hits
+(defn- splice->indices
+  "Extract the indices of a given array splice."
+  [keys json]
+  (reduce (fn [acc elem]
+            (if (map? elem) ;; is the element an array splice?
+              (do
+                (assert (vector? json) "splice cannot operate on a non-list")
+                (let [limit
+                      (count json)
+                      {:keys [start end step bounded?]}
+                      elem]
+                  (cset/union
+                   (disj acc elem)
+                   (into #{} (take (if bounded? end limit)
+                                   (range start end step))))))
+              (conj acc elem)))
+          #{}
+          keys))
+
+(defn- init-queue [init]
+  (conj clojure.lang.PersistentQueue/EMPTY init))
+
+;; enumerate = enum-vec
+;; get-at = values-vec
+;; select-keys-at = (select-keys json enum-vec)
+;; excise = (dissoc-in enum-vec json)
+;; apply-values = (update-in json enum-vec fn)
+(defn path-seqs
+  "Given a JSON object and a parsed JSONPath, return a seq of
+   maps with the following fields:
+     :json  the JSON value at the JSONPath location.
+     :path  the concrete JSONPath that was traversed.
+     :rest  the remaining JSONPath that could not be traversed
+     :fail  if the JSONPath traversal failed (e.g. key was not found)"
+  [json-obj json-path]
+  (loop [worklist (init-queue {:json json-obj
+                               :rest (seq json-path)
+                               :path []
+                               :fail false})]
+    (if-not (every? (fn [{jsn :json rst :rest}] (or (nil? jsn) (empty? rst)))
+                    worklist)
+      (let [{jsn :json rst :rest pth :path fil :fail :as workitem}
+            (peek worklist)]
+        (if-let [element (first rst)]
+          (cond
+            ;; Short circuit: if json is a primitive or nil stop traversal
+            (not (coll? jsn))
+            (let [worklist' (conj (pop worklist)
+                                  {:json nil
+                                   :rest rst
+                                   :path pth
+                                   :fail fil})]
+              (recur worklist'))
+            ;; Recursive descent
+            (= '.. element)
+            (let [desc-list (recursive-descent jsn)
+                  worklist' (reduce
+                             (fn [acc desc]
+                               (conj acc
+                                     {:json (:json desc)
+                                      :rest (rest rst)
+                                      :path (vec (concat pth (:path desc)))
+                                      :fail false}))
+                             (pop worklist)
+                             desc-list)]
+              (recur worklist'))
+            ;; Wildcard
+            (= '* element)
+            (let [worklist' (reduce-kv
+                             (fn [acc key child]
+                               (conj acc
+                                     {:json child
+                                      :rest (rest rst)
+                                      :path (conj pth key)
+                                      :fail false}))
+                             (pop worklist)
+                             jsn)]
+              (recur worklist'))
+            ;; Union of keys/indices/slices
+            (set? element)
+            (let [element'  (splice->indices element jsn)
+                  worklist' (reduce
+                             (fn [acc set-elm]
+                               (conj acc
+                                     {:json (get jsn set-elm)
+                                      :rest (rest rst)
+                                      :path (conj pth set-elm)
+                                      :fail (not (contains? jsn set-elm))}))
+                             (pop worklist)
+                             element')]
+              (recur worklist')))
+          ;; Path is exhausted; cycle work item to back of worklist
+          (recur (conj (pop worklist) workitem))))
+      (seq worklist))))
+
+
+(path-seqs {"universe" [{"foo" {"bar" 1}} {"baz" 2}]}
+           ['* #{0 1} #{"foo"} #{"bar"}])
+
+(comment
+  (s/fdef path-seq
+    :args (s/cat :json ::json/any
+                 :path ::json-path)
+    :ret (s/every (s/tuple ::json/key-path
+                           ::json/any)))
+
+  (defn path-seq*
+    [json path]
+    (lazy-seq
+     (let [path-enum (map vec
+                          (apply combo/cartesian-product
+                                 path))
+           hits (for [p path-enum
+                      :let [hit (get-in json p)]
+                      :while (some? hit)]
+                  [p hit])]
+       (when (not-empty hits)
+         (concat
+          hits
         ;; if the enum continues,
-        (when-let [first-fail (first (drop (count hits) path-enum))]
-          (let [last-pass (first (last hits))
-                fail-idx
-                (some
-                 (fn [[idx pv fv]]
-                   (when (not= pv fv)
-                     idx))
-                 (map vector
-                      (range)
-                      last-pass
-                      first-fail))]
-            (when-let [[edit-idx v]
-                       (and (< 0 fail-idx)
-                            (some
-                             (fn [idx]
-                               (let [seg (get path idx)]
-                                 (if (set? seg)
-                                   (when (< 1 (count seg))
-                                     [idx (disj seg
-                                                (get first-fail
-                                                     idx))])
-                                   (let [re-ranged
-                                         (drop-while
-                                          #(<= % (get first-fail idx))
-                                          seg)]
-                                     (when (first re-ranged)
-                                       [idx re-ranged])))))
-                             (reverse (range fail-idx))))]
-              (path-seq*
-               json
-               (assoc path edit-idx v))))))))))
+          (when-let [first-fail (first (drop (count hits) path-enum))]
+            (let [last-pass (first (last hits))
+                  fail-idx
+                  (some
+                   (fn [[idx pv fv]]
+                     (when (not= pv fv)
+                       idx))
+                   (map vector
+                        (range)
+                        last-pass
+                        first-fail))]
+              (when-let [[edit-idx v]
+                         (and (< 0 fail-idx)
+                              (some
+                               (fn [idx]
+                                 (let [seg (get path idx)]
+                                   (if (set? seg)
+                                     (when (< 1 (count seg))
+                                       [idx (disj seg
+                                                  (get first-fail
+                                                       idx))])
+                                     (let [re-ranged
+                                           (drop-while
+                                            #(<= % (get first-fail idx))
+                                            seg)]
+                                       (when (first re-ranged)
+                                         [idx re-ranged])))))
+                               (reverse (range fail-idx))))]
+                (path-seq*
+                 json
+                 (assoc path edit-idx v))))))))))
 
-(defn path-seq
-  [json path]
-  (path-seq* json (mapv
-                   (fn [element]
-                     (cond
-                       (set? element)
-                       element
+  (defn path-seq
+    [json path]
+    (path-seq* json (mapv
+                     (fn [element]
+                       (cond
+                         (set? element)
+                         element
 
-                       (= '* element)
-                       (range)
+                         (= '* element)
+                         (range)
                        ;; otherwise, itsa range spec
-                       :else
-                       (let [{:keys [start end step]} element]
-                         (range start end step))))
-                   path)))
+                         :else
+                         (let [{:keys [start end step]} element]
+                           (range start end step))))
+                     path))))
