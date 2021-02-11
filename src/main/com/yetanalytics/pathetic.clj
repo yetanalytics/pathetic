@@ -305,8 +305,12 @@
    that represent the key path into the JSON object. If the string
    contains multiple JSONPaths, we return the maps for all strings.
    If no value exists at the selection, return a truncated map with
-   \"{}\" as the innermost possible value."
-  [json paths]
+   \"{}\" as the innermost possible value.
+   
+   The following optional arguments are supported:
+     :first?  Returns the maps corresponding to the first path (if
+              paths are separated by \"|\")."
+  [json paths & {:keys [first?] :or {first? true}}]
   (letfn [(enum-maps
            [path]
            (reduce (fn [json {jsn :json pth :path}]
@@ -315,11 +319,16 @@
                        (assoc-in json pth jsn)))
                    {}
                    (json-path/path-seqs json path)))]
-    (->> paths
-         parse
-         (map enum-maps)
-         (map int-maps->vectors)
-         vec)))
+    (if first?
+      (->> (parse paths :first? true)
+           (into [])
+           (map enum-maps)
+           (map int-maps->vectors)
+           first)
+      (->> (parse paths)
+           (map enum-maps)
+           (map int-maps->vectors)
+           vec))))
 
 (comment
 

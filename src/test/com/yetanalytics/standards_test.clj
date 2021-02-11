@@ -12,7 +12,7 @@
 ;; Pathetic will default to throwing a parse failure, if that is the reason
 ;; for lack of consensus.
 ;; 
-;; Note: We do not test script/filter expressions as we do not suppor them.
+;; Note: We do not test script/filter expressions as we do not support them.
 
 (defmacro parse-failed? [form]
   `(try ~form
