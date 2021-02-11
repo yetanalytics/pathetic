@@ -250,7 +250,32 @@
                          {}
                          {"isbn" "0-553-21311-3"}
                          {"isbn" "0-395-19395-8"}]}}]
-      "$.store.book[*].author|$.store.book.*.isbn")
+      "$.store.book[*].author|$.store.book.*.isbn"
+      ;; Each entry in the recursive descent result vector is assoc'd into the
+      ;; same map
+      [{"store"
+        {"book"
+         [{"category" "reference"
+           "author"   "Nigel Rees"
+           "title"    "Sayings of the Century"
+           "price"    8.95}
+          {"category" "fiction"
+           "author"   "Evelyn Waugh"
+           "title"    "Sword of Honour"
+           "price"    12.99}
+          {"category" "fiction"
+           "author"   "Herman Melville"
+           "title"    "Moby Dick"
+           "isbn"     "0-553-21311-3"
+           "price"    8.99}
+          {"category" "fiction"
+           "author"   "J.R.R. Tolkien"
+           "title"    "The Lord of the Rings"
+           "isbn"     "0-395-19395-8"
+           "price"    22.99}]
+         "bicycle" {"color" "red"
+                    "price" 20}}}]
+      "$..*")
     (are [expected path]
          (= expected (select-keys-at long-statement path :first? true))
       {"id" "6690e6c9-3ef0-4ed3-8b37-7f3964730bee"}
@@ -288,9 +313,57 @@
        {"definition" {"type" "http://adlnet.gov/expapi/activities/meeting"}}}
       "$.object.definition.type")))
 
-;; (deftest excise-test
-;;   (is (= (dissoc long-statement "id")
-;;          (excise long-statement (json-path/parse "$.id")))))
+(deftest excise-test
+  (is (= [:b :c]
+         (excise [:a :b :c] "$[0]")))
+  (is (= [:a :b :c]
+         (excise [:a :b :c] "$[3]")))
+  (is (= {"universe" [{} {}]}
+         (excise {"universe" [{"foo" :a} {"foo" :b}]}
+                 "$.universe.*.foo")))
+  (is (= {}
+         (excise {"universe" [{"foo" :a} {"foo" :b}]}
+                 "$.universe.*.foo"
+                 :prune-empty? true)))
+  (is (= {"universe" [{"bar" :b}]}
+         (excise {"universe" [{"foo" :a} {"bar" :b}]}
+                 "$.universe.*.foo"
+                 :prune-empty? true)))
+  (is (= {"universe" [{"foo" {}} {}]}
+         (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]}
+                 "$.universe..bar")))
+  (is (= {}
+         (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]}
+                 "$.universe..bar"
+                 :prune-empty? true)))
+  (is (= {"universe" [{"foo" {}} {"baz" :c}]}
+         (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b "baz" :c}]}
+                 "$.universe..bar")))
+  (is (= {"universe" [{"baz" :c}]}
+         (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b "baz" :c}]}
+                 "$.universe..bar"
+                 :prune-empty? true)))
+  (is (= {"store" {"book"    [{"author" "Nigel Rees"}
+                              {"author" "Evelyn Waugh"}
+                              {"author" "Herman Melville"}
+                              {"author" "J.R.R. Tolkien"}]
+                   "bicycle" {"color" "red"
+                              "price" 20}}}
+         (excise goessner-ex "  $['store']['book'][*]['category']
+                              | $['store']['book'][*]['title']
+                              | $['store']['book'][*]['price']
+                              | $['store']['book'][*]['isbn']")))
+  (is (= (dissoc long-statement "id")
+         (excise long-statement "$.id")))
+  (is (= (update-in long-statement
+                    ["context" "contextActivities" "category" 0]
+                    dissoc
+                    "id")
+         (excise long-statement
+                 "$.context.contextActivities.category[*].id")))
+  (is (= long-statement ;; Don't excise missing elements
+         (excise long-statement
+                 "$.context.contextActivities.grouping[*]"))))
 
 ;; (deftest apply-values-test
 ;;   (is (= (assoc long-statement "foo" "bar")

@@ -3,6 +3,7 @@
             [clojure.spec.alpha                  :as s]
             [clojure.set :as cset]
             [clojure.core.match :as m]
+            [clojure.walk :as w]
             [com.yetanalytics.pathetic.zip       :as zip]
             [com.yetanalytics.pathetic.json      :as json]
             [com.yetanalytics.pathetic.json-path :as json-path]))
@@ -75,6 +76,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (comment
+
   (s/def :excise/prune-empty?
     boolean?)
 
@@ -110,12 +112,13 @@
                    (empty? (get-in j-after parent-key-path)))
             (recur prune-empty? j-after parent-key-path)
             j-after)))
-      j))
+      j)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Return JSON data without whatevers at `path`
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(comment
   (defn excise
     "Given json data and a parsed path, return the data without the selection, and
   any empty container.
@@ -234,6 +237,23 @@
                        {}
                        m)))))
 
+(defn- prune
+  "Remove empty vectors and arrays, as well as key-val pairs where the
+   val is empty."
+  [node]
+  (letfn [(empty-coll? [x] (and (coll? x) (empty? x)))]
+    (cond (map? node)
+          (reduce-kv (fn [acc k v]
+                       (let [v' (prune v)]
+                         (if-not (empty-coll? v') (assoc acc k v') acc)))
+                     {}
+                     node)
+          (vector? node)
+          (filterv (complement empty-coll?)
+                   (map prune node))
+          :else
+          node)))
+
 (defn- take-except-last
   [coll]
   (take (-> coll count dec) coll))
@@ -243,19 +263,33 @@
   (vec (concat (subvec coll 0 n)
                (subvec coll (inc n)))))
 
+(defn- cmp-vecs
+  "Sort vectors lexicographically, with strings always coming before ints."
+  [vec-1 vec-2]
+  (loop [v1 vec-1 v2 vec-2]
+    (if-let [x1 (first v1)]
+      (if-let [x2 (first v2)]
+        (cond (and (string? x1) (int? x2)) -1
+              (and (int? x1) (string? x2)) 1
+              (= x1 x2) (recur (rest v1) (rest v2))
+              :else (compare x1 x2))
+        (compare v1 v2))
+      (compare v1 v2))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn parse
-  "Parse a JSONPath string. Multiple paths can be concatenated with
-   the \"|\" operator, so if :first? is false (default) then a vector
-   of parsed paths will be returned. If :first? is true then only the
-   first path is returned.
-   
-   Each path is a vector with one of the following possible entries:
+  "Parse a JSONPath string. Each parsed path is a vector with the
+   following entries:
      '..     recursive descent operator
      '*      wildcard operator
-     #{...}  a set of strings (keys), integers (array indices), or
-             maps (array slicing operations)."
+     [...]   a vector of strings (keys), integers (array indices), or
+             maps (array slicing operations).
+   
+   The following optional arguments are supported:
+     :first?  Return the first path when multiple paths are joined
+              using the \"|\" operator. Default false (in which case
+              a vector of paths is returned)."
   [paths & {:keys [first?] :or {first? false}}]
   (let [res (if first?
               (json-path/parse-first paths)
@@ -309,19 +343,19 @@
    
    The following optional arguments are supported:
      :first?  Returns the maps corresponding to the first path (if
-              paths are separated by \"|\")."
-  [json paths & {:keys [first?] :or {first? true}}]
+              paths are separated by \"|\"). Default false."
+  [json paths & {:keys [first?] :or {first? false}}]
   (letfn [(enum-maps
-           [path]
-           (reduce (fn [json {jsn :json pth :path}]
-                     (if (nil? jsn)
-                       (assoc-in json (take-except-last pth) {})
-                       (assoc-in json pth jsn)))
-                   {}
-                   (json-path/path-seqs json path)))]
+            [path]
+            (reduce (fn [json {jsn :json pth :path}]
+                      (if (nil? jsn)
+                        (assoc-in json (take-except-last pth) {})
+                        (assoc-in json pth jsn)))
+                    {}
+                    (json-path/path-seqs json path)))]
     (if first?
       (->> (parse paths :first? true)
-           (into [])
+           (conj [])
            (map enum-maps)
            (map int-maps->vectors)
            first)
@@ -330,42 +364,40 @@
            (map int-maps->vectors)
            vec))))
 
+(defn excise
+  "Given a JSON object and a JSONPath string, return the JSON object with
+   the elements at the location removed.
+   
+   The following optional arguments are supported:
+     :prune-empty?  Removes empty maps and vectors, as well as
+                    key-value pairs where values are empty, after the
+                    elements are excised. Default false."
+  [json paths & {:keys [prune-empty?] :or {prune-empty? false}}]
+  (let [prune-fn (if prune-empty? prune identity)
+        rm-fn    (fn [coll k] (if (int? k)
+                                (remove-nth coll k)
+                                (dissoc coll k)))
+        paths'   (->> paths
+                      parse
+                      (mapv (partial json-path/path-seqs json))
+                      (apply concat) ;; Flatten coll of path seqs
+                      (filterv (complement :fail)) ;; Don't excise fail paths
+                      (mapv :path)
+                      (sort cmp-vecs) ;; Sort/reverse so higher-index vector
+                      reverse)]       ;; entries are removed before low-index ones
+    (prune-fn
+     (reduce (fn [json path]
+               (let [last-key (last path)
+                     rem-keys (take-except-last path)]
+                 (if (empty? rem-keys)
+                   (rm-fn json last-key) ;; update-in fails on empty key-paths
+                   (update-in json rem-keys rm-fn last-key))))
+             json
+             paths'))))
+
+(excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]} "$.universe..bar")
+
 (comment
-
-  (defn- cmp-vecs [vec-1 vec-2]
-    (loop [v1 vec-1 v2 vec-2]
-      (if-let [x1 (first v1)]
-        (if-let [x2 (first v2)]
-          (cond (and (string? x1) (int? x2)) -1
-                (and (int? x1) (string? x2)) 1
-                (= x1 x2) (recur (rest v1) (rest v2))
-                :else (compare x1 x2))
-          (compare v1 v2))
-        (compare v1 v2))))
-
-  (vec (concat (subvec [:a :b :c] 0 1)
-               (subvec [:a :b :c] 2)))
-
-  (remove-nth [:a :b :c] 3)
-
-  (defn excise-2 [json path]
-    (reduce (fn [json {:keys [enum]}]
-              (let [last-key (last enum)
-                    rem-keys (take-except-last enum)
-                    rm-fn    (fn [coll k]
-                               (if (int? k)
-                                 (assoc coll k nil)
-                                 (dissoc coll k)))]
-
-                (update-in json rem-keys rm-fn last-key)))
-            json
-            (sort cmp-vecs (json-path/path-seqs json path))))
-
-  (cmp-vecs ["foo" 3] [0 2])
-  (sort cmp-vecs [[0 "foo"] [0 2] [0 1]])
-
-  (excise-2 {"universe" [{"foo" :a} {"bar" :b}]} ())
-
   (defn apply-fn [json path f & args]
     (reduce (fn [acc {:keys [json enum]}]
               (if (some? json)
