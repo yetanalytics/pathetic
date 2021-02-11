@@ -13,99 +13,66 @@
 ;; Specs
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Indefinite paths
+
 (s/def ::root #{'$})
 
 (s/def ::wildcard #{'*})
-
 (s/def ::recursive #{'..})
 
-(s/def :range/start
-  int?)
-
-(s/def :range/end
-  int?)
-
-(s/def :range/step
-  int?)
-
-(s/def :range/bounded? ;; was this range bounded, or does it use a MAX_VALUE?
-  boolean?)
-
-(comment
-  (defrecord RangeSpec [start end step bounded?])
-
-  (s/fdef range-spec?
-    :args (s/cat :item any?)
-    :ret boolean?)
-
-  (defn range-spec?
-    [item]
-    (instance? RangeSpec item)))
-
-(s/def ::range
-  (s/keys :req-un [:range/start
-                   :range/end
-                   :range/step
-                   :range/bounded?]))
+(s/def :slice/start (s/or :index int? :limit #{:vec-higher :vec-lower}))
+(s/def :slice/end (s/or :index int? :limit #{:vec-higher :vec-lower}))
+(s/def :slice/step int?)
+(s/def ::slice (s/keys :req-un [:slice/start
+                                :slice/end
+                                :slice/step]))
 
 (s/def ::keyset
   (s/every (s/or :key string? :index int? :range ::range)
-           :type set?
-           :into #{}
+           :type vector?
            :min-count 1))
-
-(comment
-  (def ^:const max-long-str
-    (str Long/MAX_VALUE)))
-
-(comment
-  (s/fdef discrete?
-    :args (s/cat :path ::json-path)
-    :ret boolean?)
-
-  (defn discrete?
-    "Is the path free of wildcards?"
-    [path]
-    (not
-     (some (fn [x]
-             (or (= '* x)
-                 (and (range-spec? x)
-                      (not (:bounded? x)))))
-           path))))
 
 (s/def ::json-path
   (s/every (s/or :keyset    ::keyset
                  :wildcard  ::wildcard
-                 :recursive ::recursive)))
+                 :recursive ::recursive)
+           :type vector?))
 
-(s/def ::json-paths (s/every ::json-path))
+(s/def ::json-paths (s/every ::json-path
+                             :type vector?
+                             :min-count 1))
 
 ;; Instaparse parsing failures
 
-(s/def ::tag keyword?)
-(s/def ::expecting any?) ;; Just need that keyword to exist
-(s/def ::reason (s/coll-of (s/keys :req-un [::tag ::expecting])))
-(s/def ::index int?)
+(s/def :failure/tag keyword?)
+(s/def :failure/expecting any?) ;; Just need that keyword to exist
+(s/def :failure/reason (s/coll-of (s/keys :req-un [:failure/tag
+                                                   :failure/expecting])))
+(s/def :failure/index int?)
 
-(s/def ::parse-failure (s/keys :req-un [::index ::reason]))
+(s/def ::parse-failure (s/keys :req-un [:failure/index
+                                        :failure/reason]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parser
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; TODO: JSON-conformant string literals
+;; Grammar inspired from:
+;; https://github.com/dchester/jsonpath/blob/master/lib/grammar.js
+;; 
 ;; Integer and string literal regexes inspired from:
 ;; https://github.com/dchester/jsonpath/blob/master/lib/dict.js
+
 (def jsonpath-instaparser
   (insta/parser
-   "jsonpaths  := jsonpath (<#'\\s'>* <'|'> <#'\\s'>* jsonpath)*;
+   "jsonpaths  := <ws>* jsonpath (<ws>* <'|'> <ws>* jsonpath)* <ws>*;
     jsonpath   := <root> children?;
     <children> := child+;
     child      := bracket-child | dot-child;
 
-    <bracket-child>   := double-dot? <'['> <#'\\s'*> bracket-content <#'\\s'*> <']'>;
+    <bracket-child>   := double-dot? <'['> <ws*> bracket-content <ws*> <']'>;
     <bracket-content> := wildcard | bracket-union;
-    bracket-union     := union-element (<#'\\s'>* <','> <#'\\s'>* union-element)*;
+    bracket-union     := union-element (<ws>* <','> <ws>* union-element)*;
     <union-element>   := int-literal | string-literal | array-slice;
     array-slice       := int-literal? ':' int-literal? (':' int-literal?)?;
   
@@ -122,6 +89,7 @@
     wildcard    := '*';
     double-dot  := '..';
     dot         := '.';
+    ws          := #'\\s'
   "))
 
 ;; ===== AST (post-parse) =====
@@ -250,39 +218,40 @@
 
 ;; moved down from top lvl ns
 
-(s/fdef satisfied
-  :args (s/cat :json-path ::json-path
-               :key-path :com.yetanalytics.pathetic.zip/key-path)
-  :ret (s/nilable ::json-path))
+(comment
+  (s/fdef satisfied
+    :args (s/cat :json-path ::json-path
+                 :key-path :com.yetanalytics.pathetic.zip/key-path)
+    :ret (s/nilable ::json-path))
 
-(defn satisfied
-  "Given a json path and a key path, return nil if they diverge, or
+  (defn satisfied
+    "Given a json path and a key path, return nil if they diverge, or
    if they partially match return a seq of the covered pattern"
-  [path key-path]
-  (when-let [partial-sat
-             (map first
-                  (take-while
-                   (fn [[p pk]] (cond
-                                  (= p '*)  true
-                                  (= p '..) true
-                                  (set? p)  (contains? p pk)
-                                  :else     (let [{:keys [start end step]} p]
-                                              (some (partial = pk)
-                                                    (range start end step)))))
-                   (map vector
-                        path
-                        key-path)))]
-    (cond
+    [path key-path]
+    (when-let [partial-sat
+               (map first
+                    (take-while
+                     (fn [[p pk]] (cond
+                                    (= p '*)  true
+                                    (= p '..) true
+                                    (set? p)  (contains? p pk)
+                                    :else     (let [{:keys [start end step]} p]
+                                                (some (partial = pk)
+                                                      (range start end step)))))
+                     (map vector
+                          path
+                          key-path)))]
+      (cond
       ;; satisfied, we can keep it
-      (= path partial-sat)
-      path
+        (= path partial-sat)
+        path
       ;; otherwise we are partial, if there is more left in key path this is
       ;; is a failure
-      (not-empty
-       (drop (count partial-sat)
-             key-path))
-      nil
-      :else partial-sat)))
+        (not-empty
+         (drop (count partial-sat)
+               key-path))
+        nil
+        :else partial-sat))))
 
 ;; found in datassim, may need to be elsewhere
 
@@ -337,23 +306,23 @@
    - Turn negative array indices into positive ones"
   [keys json]
   (letfn [(clamp-start [len idx]
-                       (cond (< idx 0) 0
-                             (> idx len) len
-                             :else idx))
+            (cond (< idx 0) 0
+                  (> idx len) len
+                  :else idx))
           (clamp-end [len idx]
-                     (cond (< idx -1) -1
-                           (> idx len) len
-                           :else idx))
+            (cond (< idx -1) -1
+                  (> idx len) len
+                  :else idx))
           (norm-start [len start]
-                      (cond (= :vec-lower start) 0
-                            (= :vec-higher start) (dec len)
-                            (neg-int? start) (clamp-start len (+ len start))
-                            :else (clamp-start len start)))
+            (cond (= :vec-lower start) 0
+                  (= :vec-higher start) (dec len)
+                  (neg-int? start) (clamp-start len (+ len start))
+                  :else (clamp-start len start)))
           (norm-end [len end]
-                    (cond (= :vec-lower end) -1
-                          (= :vec-higher end) len
-                          (neg-int? end) (clamp-end len (+ len end))
-                          :else (clamp-end len end)))]
+            (cond (= :vec-lower end) -1
+                  (= :vec-higher end) len
+                  (neg-int? end) (clamp-end len (+ len end))
+                  :else (clamp-end len end)))]
     (reduce (fn [acc elem]
               (cond
                 (map? elem) ;; Element is an array splice
@@ -378,11 +347,15 @@
 (defn- init-queue [init]
   (conj clojure.lang.PersistentQueue/EMPTY init))
 
-;; enumerate = enum-vec
-;; get-at = values-vec
-;; select-keys-at = (select-keys json enum-vec)
-;; excise = (dissoc-in enum-vec json)
-;; apply-values = (update-in json enum-vec fn)
+;; Helper specs
+
+(s/def ::fail boolean?)
+
+(s/fdef path-seqs
+  :args (s/cat :json ::json/json :path ::json-path)
+  :ret (s/every (s/keys :req-un [::json/json ::json/path ::fail])
+                :kind vector?))
+
 (defn path-seqs
   "Given a JSON object and a parsed JSONPath, return a seq of
    maps with the following fields:
@@ -463,8 +436,9 @@
           (recur (conj (pop worklist) workitem))))
       (map #(dissoc % :rest :desc) worklist))))
 
-(path-seqs {"universe" [{"foo" {"bar" 1}} {"baz" 2}]}
-           ['.. [0]])
+(comment
+  (path-seqs {"universe" [{"foo" {"bar" 1}} {"baz" 2}]}
+             ['.. [0]]))
 
 (comment
   (s/fdef path-seq
