@@ -88,7 +88,7 @@
     ;; Original order: [12.99 19.95 22.99 8.95 8.99]
     (is (= [8.95 12.99 8.99 22.99 19.95]
            (get-at store-example "$.store..price")))
-    (is (= [nil nil 8.95 12.99 8.99 22.99 19.95]
+    (is (= [8.95 12.99 8.99 22.99 19.95] ;; Recursive descent doesn't include missing leaves
            (get-at store-example "$.store..price" :return-missing? true)))
     (is (= ["ey" "see"]
            (get-at [{"key" "ey"} {"key" "bee"} {"key" "see"}] "$[0,2].key")))
@@ -291,7 +291,7 @@
            (get-at {"\\'" "value"} "$['\\'']")))
     (is (parse-failed? ;; The backslashes are needed
          (get-at {"'" "value"} "$[''']")))
-    (is (= [] ;; No consensus, but should've returned [42]
+    (is (= [42] ;; No consensus
            (get-at {":@.\"$,*\\'\\\\" 42} "$[':@.\"$,*\\'\\\\']")))
     ;; Wildcard operator
     (is (= ["string" 42 {"key" "value"} [0 1]]
@@ -411,9 +411,6 @@
     (is (parse-failed?
          (get-at ["first" "second" "third" "forth" "fifth"] "$[*,1]")))))
 
-;; NOTE: Skip the large number tests for performance reasons
-;; NOTE: If no consensus exists, follow Python array slicing output
-
 (deftest get-at-test-array-slice
   (testing "get-at function on array slicing"
     ;; Array slice
@@ -423,7 +420,7 @@
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[0:5]")))
     (is (= []
            (get-at ["first" "second" "third"] "$[7:10]")))
-    (is (= [nil nil nil]
+    (is (= []
            (get-at ["first" "second" "third"] "$[7:10]" :return-missing? true)))
     (is (= []
            (get-at {":"    42
@@ -433,7 +430,7 @@
                     "c"    3
                     "1:3"  "nice"}
                    "$[1:3]")))
-    (is (= [nil nil]
+    (is (= [nil] ;; Returns one nil because JSON is a map, not vector
            (get-at {":"    42
                     "more" "string"
                     "a"    1
@@ -444,8 +441,21 @@
                    :return-missing? true)))
     (is (= ["second" "third"]
            (get-at ["first" "second" "third"] "$[1:10]")))
-    (is (= ["second" "third" nil nil nil nil nil nil nil]
+    (is (= ["second" "third"] ;; Slicing excludes out-of-bounds values
            (get-at ["first" "second" "third"] "$[1:10]" :return-missing? true)))
+    ;; Array slice on large numbers
+    (is (= ["third" "fourth" "fifth"]
+           (get-at ["first" "second" "third" "fourth" "fifth"]
+                   "$[2:113667776004]")))
+    (is (= ["third" "second" "first"] ;; no consensus, JS jsonpath output
+           (get-at ["first" "second" "third" "fourth" "fifth"]
+                   "$[2:-113667776004:-1]")))
+    (is (= ["first" "second"]
+           (get-at ["first" "second" "third" "fourth" "fifth"]
+                   "$[-113667776004:2]")))
+    (is (= ["fifth" "fourth"] ;; no consensus, but this is a common output
+           (get-at ["first" "second" "third" "fourth" "fifth"]
+                   "$[113667776004:2:-1]")))
     ;; Array slice w/ negative bounds
     (is (= []
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:-5]")))
@@ -458,7 +468,7 @@
     (is (= [4] 
            (get-at [2 "a" 4 5 100 "nice"] "$[-4:3]")))
     ;; Array slice w/ negative step size
-    ;; None have a consensus; follow Python
+    ;; None have a consensus; follow Python array slicing output
     (is (= ["fourth" "second"]
            (get-at ["first" "second" "third" "fourth" "fifth"] "$[3:0:-2]")))
     (is (= ["fifth"]

@@ -20,7 +20,7 @@
 (deftest parse-test-0
   (testing "Original JSONPath tests"
     (are [path v] (= v (parse-first path))
-    ;; Selections from original Goessner website
+      ;; Selections from original Goessner website
       "$.store.book[*].author" [["store"] ["book"] '* ["author"]]
       "$..author"              ['.. ["author"]]
       "$.store.*"              [["store"] '*]
@@ -30,7 +30,7 @@
       "$..book[0,1]"           ['.. ["book"] [0 1]]
       "$..book[:2]"            ['.. ["book"] [{:start :vec-lower :end 2 :step 1}]]
       "$..*"                   ['.. '*]
-    ;; Selections from cmi5
+      ;; Selections from cmi5
       "$.context.contextActivities.grouping[*]"
       [["context"] ["contextActivities"] ["grouping"] '*]
       "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid']"
@@ -38,6 +38,7 @@
 
 (deftest parse-test-1
   (testing "JSONPath strings with dot notation"
+    ;; Successes
     (are [path v] (= v (parse-first path))
       "$"            [] ; Jayway only
       "$.store"      [["store"]]
@@ -48,6 +49,7 @@
       "$.store.*"    [["store"] '*]
       "$.*.book"     ['* ["book"]]
       "$..*"         ['.. '*])
+    ;; Failures
     (are [path] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
                           (parse-first path))
       ""
@@ -67,6 +69,7 @@
 
 (deftest parse-test-2
   (testing "JSONPath strings with bracket notation"
+    ;; Successes
     (are [path v] (= v (parse-first path))
       "$['store']"              [["store"]]
       "$['store shop']"         [["store shop"]]
@@ -83,12 +86,14 @@
       "$['store'][*]"           [["store"] '*]
       "$['store']['book']['*']" [["store"] ["book"] ["*"]]
       "$[*]['books']"           ['* ["books"]]
-     ;;  "$['store\\'s']"          [#{"store\\'s"}]; Jayway supports escaped chars
-      "$['store,expensive']"     [["store,expensive"]]
+      "$['store\\'s']"          [["store\\'s"]]; Jayway supports escaped chars
+      "$[\"\\\"store\\\"\"]"    [["\\\"store\\\""]]
+      "$['store,expensive']"    [["store,expensive"]]
       "$['store']['book*']"     [["store"] ["book*"]]; All chars except ',' and ''' supported
       "$['store','expensive']"  [["store" "expensive"]]
       "$['store', 'expensive']" [["store" "expensive"]]
       "$['store',     'books']" [["store" "books"]])
+    ;; Failures
     (are [path] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
                           (parse-first path))
       "['store']"
@@ -104,7 +109,9 @@
 
 (deftest parse-test-3
   (testing "JSONPath strings with arrays"
+    ;; Successes
     (are [path v] (= v (parse-first path))
+      "$[0]"                            [[0]]
       "$..[0]"                          ['.. [0]]
       "$..book[0]"                      ['.. ["book"] [0]]
       "$..book[1234]"                   ['.. ["book"] [1234]]
@@ -121,11 +128,22 @@
       "$.book[-1]"                      [["book"] [-1]]
       ;; Array slicing
       "$.book[0:6:2]"   [["book"] [{:start 0 :end 6 :step 2}]]
-      "$.book[-1:]"     [["book"] [{:start -1 :end :vec-higher :step 1}]]
-      "$.book[:1]"      [["book"] [{:start :vec-lower :end 1 :step 1}]]
-      "$.book[0:2]"     [["book"] [{:start 0 :end 2 :step 1}]]
-      "$.book[0:3:]"    [["book"] [{:start 0 :end 3 :step 1}]]
-      "$.book[0:4:2,1]" [["book"] [{:start 0 :end 4 :step 2} 1]])
+      "$[:]"            [[{:start :vec-lower :end :vec-higher :step 1}]]
+      "$[::]"           [[{:start :vec-lower :end :vec-higher :step 1}]]
+      "$[1:]"           [[{:start 1 :end :vec-higher :step 1}]]
+      "$[-1:]"          [[{:start -1 :end :vec-higher :step 1}]]
+      "$[:1]"           [[{:start :vec-lower :end 1 :step 1}]]
+      "$[:-2]"          [[{:start :vec-lower :end -2 :step 1}]]
+      "$[0:2]"          [[{:start 0 :end 2 :step 1}]]
+      "$[0:3:]"         [[{:start 0 :end 3 :step 1}]]
+      "$[::2]"          [[{:start :vec-lower :end :vec-higher :step 2}]]
+      "$[::-3]"         [[{:start :vec-higher :end :vec-lower :step -3}]]
+      "$[1::4]"         [[{:start 1 :end :vec-higher :step 4}]]
+      "$[1::-4]"        [[{:start 1 :end :vec-lower :step -4}]]
+      "$[:10:3]"        [[{:start :vec-lower :end 10 :step 3}]]
+      "$[:1:-3]"        [[{:start :vec-higher :end 1 :step -3}]]
+      "$[0:4:2,1]"      [[{:start 0 :end 4 :step 2} 1]])
+    ;; Failure
     (are [path] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
                           (parse-first path))
       "$.store.book[[0]"

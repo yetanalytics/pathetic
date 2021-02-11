@@ -175,13 +175,18 @@
     :else
     (throw (ex-info "cannot process array slice" {:array-slice slice-list}))))
 
-;; Regex from:
-;; https://stackoverflow.com/questions/56618450/how-to-remove-matching-quotes-when-quotes-surrounds-word-that-starts-with-or
-(defn- unquote-str
-  [quoted-str]
-  (-> quoted-str
-      (string/replace #"\"([^\"]*)\"" "$1")
-      (string/replace #"\'([^\']*)\'" "$1")))
+(defn- unquote-str [s]
+  ;; Assume that quotes are symmetrical
+  (cond
+    ;; \"foo\" or \'foo\' 
+    (or (= \' (first s)) (= \" (first s)))
+    (subs s 1 (-> s count dec))
+    ;; \\'foo\\'
+    (and (= \\ (first s)) (= \' (second s)))
+    (subs s 2 (-> s count dec dec))
+    ;; foo
+    :else
+    s))
 
 (defn- str->int
   [int-str]
@@ -238,7 +243,6 @@
   [jsonpath-str]
   (let [parse-res (parse jsonpath-str)]
     (parse-bind parse-res first)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Library functions
@@ -320,7 +324,8 @@
    (let [children (conj children {:json json :path path})]
      (cond
        (coll? json)
-       (reduce-kv (fn [acc k v] (recursive-descent v (conj path k) acc))
+       (reduce-kv (fn [acc k v]
+                    (recursive-descent v (conj path k) acc))
                   children
                   json)
        :else
@@ -331,28 +336,44 @@
    - Turn array splices into array index sequences
    - Turn negative array indices into positive ones"
   [keys json]
-  (reduce (fn [acc elem]
-            (cond
-              (map? elem) ;; Element is an array splice
-              (let [{:keys [start end step]} elem
-                    len   (count json)
-                    start (cond (= :vec-lower start) 0
-                                (= :vec-higher start) (dec len)
-                                (neg-int? start) (+ len start)
-                                :else start)
-                    end   (cond (= :vec-lower end) -1
-                                (= :vec-higher end) len
-                                (neg-int? end) (+ len end)
-                                :else end)
-                    step  (if (zero? step) 1 step) ;; no infinite loops
-                    nvals (range start end step)]
-                (vec (concat acc nvals)))
-              (neg-int? elem)
-              (conj acc (+ (count json) elem))
-              :else
-              (conj acc elem)))
-          []
-          keys))
+  (letfn [(clamp-start [len idx]
+                       (cond (< idx 0) 0
+                             (> idx len) len
+                             :else idx))
+          (clamp-end [len idx]
+                     (cond (< idx -1) -1
+                           (> idx len) len
+                           :else idx))
+          (norm-start [len start]
+                      (cond (= :vec-lower start) 0
+                            (= :vec-higher start) (dec len)
+                            (neg-int? start) (clamp-start len (+ len start))
+                            :else (clamp-start len start)))
+          (norm-end [len end]
+                    (cond (= :vec-lower end) -1
+                          (= :vec-higher end) len
+                          (neg-int? end) (clamp-end len (+ len end))
+                          :else (clamp-end len end)))]
+    (reduce (fn [acc elem]
+              (cond
+                (map? elem) ;; Element is an array splice
+                (if (vector? json)
+                  (let [{:keys [start end step]} elem
+                        len   (count json)
+                        start (norm-start len start)
+                        end   (norm-end len end)
+                        step  (if (zero? step) 1 step) ;; no infinite loops
+                        nvals (range start end step)]
+                    (vec (concat acc nvals)))
+                  ;; JSON data is not a vector, return a dummy index such that
+                  ;; (get json 0) => nil
+                  (conj acc 0))
+                (neg-int? elem)
+                (conj acc (+ (count json) elem))
+                :else
+                (conj acc elem)))
+            []
+            keys)))
 
 (defn- init-queue [init]
   (conj clojure.lang.PersistentQueue/EMPTY init))
@@ -369,7 +390,7 @@
      :path  the concrete JSONPath that was traversed.
      :rest  the remaining JSONPath that could not be traversed
      :fail  if the JSONPath traversal failed due to missing keys/indices
-     :desc  if the previous JSONPath element was the recursive descent op"
+     :desc  if traversal was the direct result of the \"..\" operator"
   [json-obj json-path]
   (loop [worklist (init-queue {:json json-obj
                                :rest (seq json-path)
@@ -427,21 +448,23 @@
             (let [element'  (normalize-indices element jsn)
                   worklist' (reduce
                              (fn [acc sub-elm]
-                               (conj acc
-                                     {:json (get jsn sub-elm)
-                                      :rest (rest rst)
-                                      :path (conj pth sub-elm)
-                                      :fail (not (contains? jsn sub-elm))
-                                      :desc false}))
+                               (if (and dsc (not (contains? jsn sub-elm)))
+                                 acc ;; Recursive desc: don't add missing keys
+                                 (conj acc
+                                       {:json (get jsn sub-elm)
+                                        :rest (rest rst)
+                                        :path (conj pth sub-elm)
+                                        :fail (not (contains? jsn sub-elm))
+                                        :desc false})))
                              (pop worklist)
                              element')]
               (recur worklist')))
           ;; Path is exhausted; cycle work item to back of worklist
           (recur (conj (pop worklist) workitem))))
-      (map #(dissoc % :path :desc) worklist))))
+      (map #(dissoc % :rest :desc) worklist))))
 
 (path-seqs {"universe" [{"foo" {"bar" 1}} {"baz" 2}]}
-           ['* #{0 1} #{"foo"} #{"bar"}])
+           ['.. [0]])
 
 (comment
   (s/fdef path-seq
