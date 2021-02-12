@@ -1,11 +1,12 @@
 (ns com.yetanalytics.pathetic.path-spec-test
-  (:require [clojure.test :refer :all]
-            [com.yetanalytics.pathetic.path-spec :refer :all]
-            [xapi-schema.spec :as xs]
+  (:require [clojure.test :refer [deftest testing is]]
             [clojure.spec.alpha :as s]
+            [clojure.java.io    :as io]
+            [clojure.data.json  :as json]
+            [xapi-schema.spec   :as xs]
             [com.yetanalytics.pathetic.zip :as pzip]
-            [clojure.java.io :as io]
-            [clojure.data.json :as json]))
+            [com.yetanalytics.pathetic.path-spec
+             :refer [spec-map path->spec]]))
 
 (deftest spec-map-test
   (is (s/valid? :com.yetanalytics.pathetic.path-spec/spec-map spec-map)))
