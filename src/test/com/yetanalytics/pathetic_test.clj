@@ -1,9 +1,9 @@
 (ns com.yetanalytics.pathetic-test
-  (:require [clojure.test                        :refer :all]
-            [com.yetanalytics.pathetic           :refer :all]
-            [clojure.java.io                     :as io]
-            [clojure.data.json                   :as json]
-            [com.yetanalytics.pathetic.json-path :as json-path]))
+  (:require [clojure.test      :refer [deftest testing is are]]
+            [clojure.java.io   :as io]
+            [clojure.data.json :as json]
+            [com.yetanalytics.pathetic 
+             :refer [parse enumerate get-at select-keys-at excise apply-value]]))
 
 (def goessner-ex {"store" {"book"    [{"category" "reference"
                                        "author"   "Nigel Rees"

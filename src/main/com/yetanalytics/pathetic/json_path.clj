@@ -1,13 +1,10 @@
 (ns com.yetanalytics.pathetic.json-path
   (:require [clojure.core.match :as m]
-            [clojure.string :as string]
-            [clojure.set :as cset]
-            [clojure.walk :as w]
-            [clojure.spec.alpha             :as s]
-            [clojure.math.combinatorics     :as combo]
-            [com.yetanalytics.pathetic.json :as json]
-            #_[com.yetanlaytics.pathetic.zip  :as zip]
-            [instaparse.core :as insta]))
+            [clojure.string     :as string]
+            [clojure.walk       :as w]
+            [clojure.spec.alpha :as s]
+            [instaparse.core    :as insta]
+            [com.yetanalytics.pathetic.json :as json]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs
@@ -98,14 +95,13 @@
 ;; child          := identifier | int-literal | string-literal |
 ;;                   array-slice | bracket-union |
 ;;                   wildcard | double-dot
-;; bracket-union  := #{int-literal | string-literal | array-slice ...}
-;; array-slice    := {:start int-literal
-;;                    :end int-literal
-;;                    :range int-literal
-;;                    :bounded boolean}
-;; identifier     := #{<string literal>}
-;; int-literal    := #{<integer literal>}
-;; string-literal := #{<string literal>}
+;; bracket-union  := [int-literal | string-literal | array-slice ...]
+;; array-slice    := {:start int-literal | :vec-lower | :vec-higher
+;;                    :end   int-literal | :vec-lower | :vec-higher
+;;                    :step  int-literal}
+;; identifier     := [<string literal>]
+;; int-literal    := [<integer literal>]
+;; string-literal := [<string literal>]
 ;; wildcard       := '*
 ;; double-dot     := '..
 
@@ -269,74 +265,7 @@
 ;; Path enumeration
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; moved down from top lvl ns
-
-(comment
-  (s/fdef satisfied
-    :args (s/cat :json-path ::json-path
-                 :key-path :com.yetanalytics.pathetic.zip/key-path)
-    :ret (s/nilable ::json-path))
-
-  (defn satisfied
-    "Given a json path and a key path, return nil if they diverge, or
-   if they partially match return a seq of the covered pattern"
-    [path key-path]
-    (when-let [partial-sat
-               (map first
-                    (take-while
-                     (fn [[p pk]] (cond
-                                    (= p '*)  true
-                                    (= p '..) true
-                                    (set? p)  (contains? p pk)
-                                    :else     (let [{:keys [start end step]} p]
-                                                (some (partial = pk)
-                                                      (range start end step)))))
-                     (map vector
-                          path
-                          key-path)))]
-      (cond
-      ;; satisfied, we can keep it
-        (= path partial-sat)
-        path
-      ;; otherwise we are partial, if there is more left in key path this is
-      ;; is a failure
-        (not-empty
-         (drop (count partial-sat)
-               key-path))
-        nil
-        :else partial-sat))))
-
-;; found in datassim, may need to be elsewhere
-
-(comment
-  (s/def :enumerate/limit
-    number?)
-
-  (s/fdef enumerate
-    :args (s/cat :path ::json-path
-                 :options (s/keys* :opt-un [:enumerate/limit]))
-    :ret (s/every ::json/key-path))
-
-  (defn enumerate
-    "Given a json path, return a lazy seq of concrete key paths.
-   Wildcards/recursive/ranges will be enumerated up to :limit,
-   which defaults to 10"
-    [path & {:keys [limit] :or {limit 10}}]
-    (map vec
-         (apply combo/cartesian-product
-                (map
-                 (fn [element]
-                   (cond
-                     (set? element)
-                     element
-                     (= '* element)
-                     (if limit (range limit) (range))
-                   ;; otherwise, itsa range spec
-                     :else
-                     (let [{:keys [start end step]} element]
-                       (cond->> (range start end step)
-                         limit (take limit)))))
-                 path)))))
+;; Helper functions
 
 (defn- normalize-indices
   "Normalize indices by doing the following:
@@ -516,72 +445,3 @@
           ;; Cycle workitem to end
           (recur (conj (pop worklist) workitem))))
       (seq worklist))))
-
-(comment
-  (s/fdef path-seq
-    :args (s/cat :json ::json/any
-                 :path ::json-path)
-    :ret (s/every (s/tuple ::json/key-path
-                           ::json/any)))
-
-  (defn path-seq*
-    [json path]
-    (lazy-seq
-     (let [path-enum (map vec
-                          (apply combo/cartesian-product
-                                 path))
-           hits (for [p path-enum
-                      :let [hit (get-in json p)]
-                      :while (some? hit)]
-                  [p hit])]
-       (when (not-empty hits)
-         (concat
-          hits
-        ;; if the enum continues,
-          (when-let [first-fail (first (drop (count hits) path-enum))]
-            (let [last-pass (first (last hits))
-                  fail-idx
-                  (some
-                   (fn [[idx pv fv]]
-                     (when (not= pv fv)
-                       idx))
-                   (map vector
-                        (range)
-                        last-pass
-                        first-fail))]
-              (when-let [[edit-idx v]
-                         (and (< 0 fail-idx)
-                              (some
-                               (fn [idx]
-                                 (let [seg (get path idx)]
-                                   (if (set? seg)
-                                     (when (< 1 (count seg))
-                                       [idx (disj seg
-                                                  (get first-fail
-                                                       idx))])
-                                     (let [re-ranged
-                                           (drop-while
-                                            #(<= % (get first-fail idx))
-                                            seg)]
-                                       (when (first re-ranged)
-                                         [idx re-ranged])))))
-                               (reverse (range fail-idx))))]
-                (path-seq*
-                 json
-                 (assoc path edit-idx v))))))))))
-
-  (defn path-seq
-    [json path]
-    (path-seq* json (mapv
-                     (fn [element]
-                       (cond
-                         (set? element)
-                         element
-
-                         (= '* element)
-                         (range)
-                       ;; otherwise, itsa range spec
-                         :else
-                         (let [{:keys [start end step]} element]
-                           (range start end step))))
-                     path))))

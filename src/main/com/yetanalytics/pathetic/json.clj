@@ -1,6 +1,10 @@
 (ns com.yetanalytics.pathetic.json
   (:require [clojure.spec.alpha :as s]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Specs
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; Spec representing a generic JSON object.
 
 (s/def ::any
@@ -30,6 +34,10 @@
 (s/def ::paths (s/every ::key-path
                         :type vector?
                         :min-count 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn recursive-descent
   "Perform the recursive descent operation (\"..\" in JSONPath syntax).

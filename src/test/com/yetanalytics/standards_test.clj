@@ -1,7 +1,6 @@
 (ns com.yetanalytics.standards-test
   (:require [clojure.test :refer [deftest testing is]]
-            [com.yetanalytics.pathetic :refer [get-at]]
-            #_[com.yetanalytics.standards-test :refer [parse-failed?]]))
+            [com.yetanalytics.pathetic :refer [get-at]]))
 
 ;; This test suite is designed to compare Pathetic against the JSONPath
 ;; examples given by Christoph Burgmer's test suite at:

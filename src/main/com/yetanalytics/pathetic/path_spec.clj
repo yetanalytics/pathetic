@@ -1,8 +1,12 @@
 (ns com.yetanalytics.pathetic.path-spec
   "Given a path into an xAPI structure, return a spec from xapi-schema"
   (:require [clojure.spec.alpha :as s]
-            [xapi-schema.spec :as xs]
+            [xapi-schema.spec   :as xs]
             [com.yetanalytics.pathetic.json :as json]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Specs + spec maps
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/def :spec-map.map-spec/keys qualified-keyword?)
 
@@ -112,6 +116,10 @@
 
    ::xs/extensions {:keys ::xs/iri
                     :vals ::json/json}})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; TODO: Parse string paths
 

@@ -1,19 +1,18 @@
 {:paths ["resources" "src/main"]
- :deps {org.clojure/clojure {:mvn/version "RELEASE"}
+ :deps {org.clojure/clojure    {:mvn/version "1.10.2"}
         org.clojure/core.match {:mvn/version "0.3.0"}
-        org.blancas/kern {:mvn/version "1.1.0"}
-        org.clojure/data.json {:mvn/version "0.2.7"}
-        org.clojure/math.combinatorics {:mvn/version "0.1.6"}
-        instaparse/instaparse {:mvn/version "1.4.10"}
+        org.clojure/data.json  {:mvn/version "0.2.7"}
+        instaparse/instaparse  {:mvn/version "1.4.10"}
         com.yetanalytics/xapi-schema
         {:git/url "https://github.com/yetanalytics/xapi-schema"
-         :sha "01834cf51144c77d2ffe2d7ffb727f9289405350"}}
+         :sha     "01834cf51144c77d2ffe2d7ffb727f9289405350"}}
  :aliases
- {:test {:extra-paths ["src/test"]
-         :extra-deps {org.clojure/test.check {:mvn/version "RELEASE"}}}
+ {:test
+  {:extra-paths ["src/test"]
+   :extra-deps  {org.clojure/test.check {:mvn/version "1.1.0"}}}
   :runner
   {:extra-deps {com.cognitect/test-runner
                 {:git/url "https://github.com/cognitect-labs/test-runner"
-                 :sha "f7ef16dc3b8332b0d77bc0274578ad5270fbfedd"}}
-   :main-opts ["-m" "cognitect.test-runner"
-               "-d" "src/test"]}}}
+                 :sha     "f7ef16dc3b8332b0d77bc0274578ad5270fbfedd"}}
+   :main-opts  ["-m" "cognitect.test-runner"
+                "-d" "src/test"]}}}

@@ -27,7 +27,7 @@
     (is (s/valid? ::json/any store-ex))
     (is (s/valid? ::json/json store-ex))
     (is (s/valid? ::json/json nil))
-    (is (s/valid? ::json/path [1 2 3 "foo" "bar" :baz]))))
+    (is (s/valid? ::json/path [1 2 3 "foo" "bar"]))))
 
 (deftest recursive-descent-test
   (testing "recursive-descent function - should return all JSON substructures"
