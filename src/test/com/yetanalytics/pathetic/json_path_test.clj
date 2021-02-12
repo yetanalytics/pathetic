@@ -4,18 +4,24 @@
             [com.yetanalytics.pathetic.json-path
              :refer :all]))
 
-(deftest satisfied-test
-  (let [json-path [#{"foo"} #{"bar"} '* #{"quxx"} #{0 1}]
-        key-path ["foo" "bar" "baz" "quxx" 0]]
-    (testing "when json-path and key path match"
-      (testing "returns the json path"
-        (is (= json-path (satisfied json-path key-path)))))
-    (testing "when json-path and key path match partially"
-      (testing "returns the json path"
-        (is (= (take 3 json-path) (take 3 (satisfied json-path key-path))))))
-    (testing "when json-path and key path diverge"
-      (testing "returns nil"
-        (is (nil? (satisfied json-path (assoc key-path 3 "blork"))))))))
+(comment
+  (deftest satisfied-test
+    (let [json-path [#{"foo"} #{"bar"} '* #{"quxx"} #{0 1}]
+          key-path ["foo" "bar" "baz" "quxx" 0]]
+      (testing "when json-path and key path match"
+        (testing "returns the json path"
+          (is (= json-path (satisfied json-path key-path)))))
+      (testing "when json-path and key path match partially"
+        (testing "returns the json path"
+          (is (= (take 3 json-path) (take 3 (satisfied json-path key-path))))))
+      (testing "when json-path and key path diverge"
+        (testing "returns nil"
+          (is (nil? (satisfied json-path (assoc key-path 3 "blork")))))))))
+
+(deftest path->string-test
+  (testing "Converting parsed paths back to strings"
+    (is (= "$[0,1,foo,0:5:1]..[*]" 
+         (path->string [[0 1 "foo" {:start 0 :end 5 :step 1}] '.. '*])))))
 
 (deftest parse-test-0
   (testing "Original JSONPath tests"
@@ -50,8 +56,7 @@
       "$.*.book"     ['* ["book"]]
       "$..*"         ['.. '*])
     ;; Failures
-    (are [path] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
-                          (parse-first path))
+    (are [path] (is-parse-failure? (parse-first path))
       ""
       ".store"
       "$."
@@ -94,8 +99,7 @@
       "$['store', 'expensive']" [["store" "expensive"]]
       "$['store',     'books']" [["store" "books"]])
     ;; Failures
-    (are [path] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
-                          (parse-first path))
+    (are [path] (is-parse-failure? (parse-first path))
       "['store']"
       "$[]"
       "$['store"
@@ -142,10 +146,10 @@
       "$[1::-4]"        [[{:start 1 :end :vec-lower :step -4}]]
       "$[:10:3]"        [[{:start :vec-lower :end 10 :step 3}]]
       "$[:1:-3]"        [[{:start :vec-higher :end 1 :step -3}]]
-      "$[0:4:2,1]"      [[{:start 0 :end 4 :step 2} 1]])
+      "$[0:4:2,1]"      [[{:start 0 :end 4 :step 2} 1]]
+      "$[0:5:1]..[*]"   [[{:start 0 :end 5 :step 1}] '.. '*])
     ;; Failure
-    (are [path] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
-                          (parse-first path))
+    (are [path] (is-parse-failure? (parse-first path))
       "$.store.book[[0]"
       "$.store.book[0]]"
       "$..book[?(@isbn)]" ; Filter fns not supported in xAPI Profile spec
@@ -174,8 +178,10 @@
       [[["store|$.io"]]]
       "$.store[*] | $.results['b|ah']"
       [[["store"] '*] [["results"] ["b|ah"]]])
-    (are [paths] (s/valid? :com.yetanalytics.pathetic.json-path/parse-failure
-                           (parse paths))
+    (are [paths] (is-parse-failure? (parse paths))
       "$.store.book $.results.extension"
       "$.store.book | what the pineapple"
       "$['store|$['io']]")))
+
+;; Note: path-seqs and speculative-path-seqs are tested indirectly in
+;; pathetic-test

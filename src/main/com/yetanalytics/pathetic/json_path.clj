@@ -213,7 +213,60 @@
     (parse-bind parse-res first)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Library functions
+;; Auxillary/misc functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn is-parse-failure?
+  "Returns true if the given object is error data from a parse
+   failure, false otherwise."
+  [x]
+  (s/valid? ::parse-failure x))
+
+(defn get-not-strict
+  "Returns the first non-strict element in a parsed path, which 
+   is any one of the following:
+   - Recursive descent operators (\"..\")
+   - Array slices
+   - Negative array indices"
+  [parsed-path]
+  (letfn [(not-strict-element
+            [elem]
+           (cond (= '.. elem)
+                 elem
+                 (= '* elem)
+                 nil
+                 :else ;; vector
+                 (some (fn [x] (when (or (map? x) (neg-int? x)) x))
+                       elem)))]
+    (some not-strict-element parsed-path)))
+
+(defn path-element->string
+  "Stringify a path element, e.g. [{:start 0 :end 5 :step 1}]
+   becomes \"[0:5:1]\"."
+  [element]
+  (letfn [(sub-elem->str
+            [elm]
+            (if (map? elm)
+              (str (:start elm) ":" (:end elm) ":" (:step elm))
+              (str elm)))]
+    (if (vector? element)
+      ;; Keys/indices/slices
+      (string/join "," (map sub-elem->str element))
+      ;; ".." and "*"
+      (str element))))
+
+(defn path->string
+  "Stringify a parsed path, e.g. ['* ['books']]
+   becomes \"$['*']['books']\"."
+  [parsed-path]
+  (letfn [(elem->str [elm]
+                     (if-not (= '.. elm)
+                       (str "[" (path-element->string elm) "]")
+                       (path-element->string elm)))]
+    (str "$" (string/join (map elem->str parsed-path)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Path enumeration
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; moved down from top lvl ns
@@ -285,21 +338,6 @@
                          limit (take limit)))))
                  path)))))
 
-(defn- recursive-descent
-  "Perform the recursive descent operation (\"..\" in JSONPath syntax).
-   Returns all possible sub-structures of a JSON data structure."
-  ([json] (recursive-descent json [] []))
-  ([json path children]
-   (let [children (conj children {:json json :path path})]
-     (cond
-       (coll? json)
-       (reduce-kv (fn [acc k v]
-                    (recursive-descent v (conj path k) acc))
-                  children
-                  json)
-       :else
-       children))))
-
 (defn- normalize-indices
   "Normalize indices by doing the following:
    - Turn array splices into array index sequences
@@ -360,11 +398,13 @@
   "Given a JSON object and a parsed JSONPath, return a seq of
    maps with the following fields:
      :json  the JSON value at the JSONPath location.
-     :path  the concrete JSONPath that was traversed.
-     :rest  the remaining JSONPath that could not be traversed
-     :fail  if the JSONPath traversal failed due to missing keys/indices
-     :desc  if traversal was the direct result of the \"..\" operator"
+     :path  the definite JSONPath that was traversed.
+     :fail  if the JSONPath traversal failed due to missing
+            keys or indices"
   [json-obj json-path]
+  ;; Additional internal fields:
+  ;;   :rest  the remaining JSONPath that could not be traversed
+  ;;   :desc  if traversal was the direct result of the .. operator
   (loop [worklist (init-queue {:json json-obj
                                :rest (seq json-path)
                                :path []
@@ -391,7 +431,7 @@
                 (recur worklist')))
             ;; Recursive descent
             (= '.. element)
-            (let [desc-list (recursive-descent jsn)
+            (let [desc-list (json/recursive-descent jsn)
                   worklist' (reduce
                              (fn [acc desc]
                                (conj acc
@@ -436,9 +476,46 @@
           (recur (conj (pop worklist) workitem))))
       (map #(dissoc % :rest :desc) worklist))))
 
-(comment
-  (path-seqs {"universe" [{"foo" {"bar" 1}} {"baz" 2}]}
-             ['.. [0]]))
+(defn speculative-path-seqs
+  "Similar to path-seqs, except it continues traversing the path even if
+   the location in the JSON data is missing or incompatible. Returns the
+   same fields as path-seqs except for :fail."
+  [json-obj json-path]
+  (loop [worklist (init-queue {:json json-obj
+                               :rest (seq json-path)
+                               :path []})]
+    (if-not (every? (fn [{rst :rest}] (empty? rst)) worklist)
+      (let [{jsn :json rst :rest pth :path :as workitem}
+            (peek worklist)]
+        (if-let [element (first rst)]
+          (cond
+            ;; Recursive descent: not allowed
+            (= '.. element)
+            (throw (ex-info "illegal path element" {}))
+            ;; Wildcard: append to end
+            (= '* element)
+            (recur (conj (pop worklist)
+                         {:json nil
+                          :rest (rest rst)
+                          :path (conj pth
+                                      (cond (vector? jsn) (-> jsn count)
+                                            (map? jsn) (-> jsn count str)
+                                            :else 0))}))
+            ;; Vector of keys/indices
+            (vector? element)
+            (if (or (some map? element) (some neg-int? element))
+              (throw (ex-info "illegal path element" {}))
+              (let [worklist' (reduce (fn [acc sub-elm]
+                                        (conj acc
+                                              {:json (get jsn sub-elm)
+                                               :rest (rest rst)
+                                               :path (conj pth sub-elm)}))
+                                      (pop worklist)
+                                      element)]
+                (recur worklist'))))
+          ;; Cycle workitem to end
+          (recur (conj (pop worklist) workitem))))
+      (seq worklist))))
 
 (comment
   (s/fdef path-seq

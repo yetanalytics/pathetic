@@ -22,8 +22,7 @@
 
 (s/def ::key
   (s/or :index (s/int-in 0 Integer/MAX_VALUE) ; Negative indices get normalized
-        :key (s/or :string string?
-                   :keyword keyword?)))
+        :key string?))
 
 (s/def ::path (s/every ::key
                        :type vector?))
@@ -32,13 +31,47 @@
                         :type vector?
                         :min-count 1))
 
+(defn recursive-descent
+  "Perform the recursive descent operation (\"..\" in JSONPath syntax).
+   Returns all possible sub-structures of a JSON data structure."
+  ([json] (recursive-descent json [] []))
+  ([json path children]
+   (let [children (conj children {:json json :path path})]
+     (cond
+       (coll? json)
+       (reduce-kv (fn [acc k v]
+                    (recursive-descent v (conj path k) acc))
+                  children
+                  json)
+       :else
+       children))))
+
+(s/fdef jassoc
+  :args (s/cat :coll (s/nilable coll?) :k ::key :v ::any)
+  :ret  (s/or :map (s/map-of string? ::any)
+              :vector (s/coll-of ::any :kind vector?)))
+
 (defn jassoc
-  "Like assoc, but if the first arg is nil it will dispatch on key to create the
-   value, placing val in a new vector if needed. Only has the one simple arity"
+  "Like assoc, but with the following differences:
+   - Automatically dispatches on the type of k for colls.
+     If k is a string, we assoc the key-val pair to a map,
+     otherwise we assoc it to a vector.
+   - If coll is a scalar or is the wrong coll, (e.g. a map
+     with a vector key), we overwrite the original coll.
+   - If the vector index is out of bounds, we increase the size
+     of the vector, filling in skipped entries with nils."
   [coll k v]
-  (if (or coll (string? k))
-    (assoc coll k v)
-    (assoc [] k v)))
+  (cond (string? k)
+        (if (map? coll) (assoc coll k v) (assoc {} k v))
+        (int? k)
+        (let [coll (if (vector? coll) coll [])]
+             (if (< k (count coll))
+               (assoc coll k v)
+               (loop [idx   (count coll)
+                      coll' coll]
+                 (if (= idx k)
+                   (assoc coll' k v)
+                   (recur (inc idx) (assoc coll' idx nil))))))))
 
 (defn jassoc-in
   "like assoc-in, but for jassoc"
