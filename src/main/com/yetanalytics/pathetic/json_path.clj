@@ -225,7 +225,7 @@
 (defn get-not-strict
   "Returns the first non-strict element in a parsed path, which 
    is any one of the following:
-   - Recursive descent operators (\"..\")
+   - Recursive descent operator (\"..\")
    - Array slices
    - Negative array indices"
   [parsed-path]

@@ -1,6 +1,6 @@
-(ns com.yetanalytics.pathetic.path-test
+(ns com.yetanalytics.pathetic.path-spec-test
   (:require [clojure.test :refer :all]
-            [com.yetanalytics.pathetic.path :refer :all]
+            [com.yetanalytics.pathetic.path-spec :refer :all]
             [xapi-schema.spec :as xs]
             [clojure.spec.alpha :as s]
             [com.yetanalytics.pathetic.zip :as pzip]
@@ -8,13 +8,12 @@
             [clojure.data.json :as json]))
 
 (deftest spec-map-test
-  (is (s/valid? :com.yetanalytics.pathetic.path/spec-map spec-map)))
+  (is (s/valid? :com.yetanalytics.pathetic.path-spec/spec-map spec-map)))
 
 (def long-statement
   (with-open
     [r (io/reader (io/resource "pathetic/data/long.json"))]
     (json/read r)))
-
 
 (deftest path->spec-test
   (testing "works for lots of paths"
@@ -26,7 +25,6 @@
              (and spec
                   (s/valid? spec v))))
          (pzip/json->path-map long-statement))))
-
   (testing "works for arbitrary and relative paths"
     (is (= ::xs/language-map-text
            (path->spec ::xs/activity ["definition" "name" "en-US"]))))
