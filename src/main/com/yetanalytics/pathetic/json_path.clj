@@ -137,7 +137,9 @@
     [[[start] ":" [end] ":" [step]]]
     {:start start :end end :step step}
     :else
-    (throw (ex-info "cannot process array slice" {:array-slice slice-list}))))
+    (throw (ex-info "cannot process array slice"
+                    {:type ::invalid-array-slice
+                     :array-slice slice-list}))))
 
 (defn- unquote-str [s]
   ;; Assume that quotes are symmetrical
@@ -420,7 +422,9 @@
           (cond
             ;; Recursive descent: not allowed
             (= '.. element)
-            (throw (ex-info "illegal path element" {}))
+            (throw (ex-info "illegal path element"
+                            {:type    ::illegal-path-element
+                             :element element}))
             ;; Wildcard: append to end
             (= '* element)
             (recur (conj (pop worklist)
@@ -433,7 +437,9 @@
             ;; Vector of keys/indices
             (vector? element)
             (if (or (some map? element) (some neg-int? element))
-              (throw (ex-info "illegal path element" {}))
+              (throw (ex-info "illegal path element"
+                              {:type   ::illegal-path-element
+                               :element element}))
               (let [worklist' (reduce (fn [acc sub-elm]
                                         (conj acc
                                               {:json (get jsn sub-elm)

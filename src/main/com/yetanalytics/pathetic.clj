@@ -97,13 +97,16 @@
               (json-path/parse-first paths)
               (json-path/parse paths))]
     (if (json-path/is-parse-failure? res)
-      (throw (ex-info "Cannot parse JSONPath string" res))
+      (throw (ex-info "Cannot parse JSONPath string"
+                      (assoc res :type ::invalid-path)))
       (do (when strict?
             (when-let [strict-elem (if first?
                                      (json-path/get-not-strict res)
                                      (some json-path/get-not-strict res))]
               (throw (ex-info "Illegal path element in strict mode"
-                              {:element strict-elem}))))
+                              {:type    ::invalid-strict-path
+                               :paths   res
+                               :element strict-elem}))))
           res))))
 
 ;; Originally "enumerate"
