@@ -3,7 +3,11 @@
             [clojure.java.io   :as io]
             [clojure.data.json :as json]
             [com.yetanalytics.pathetic 
-             :refer [parse enumerate get-at select-keys-at excise apply-value]]))
+             :refer [parse-path
+                     get-paths
+                     get-values
+                     get-path-value-map
+                     select-keys-at excise apply-value]]))
 
 (def goessner-ex {"store" {"book"    [{"category" "reference"
                                        "author"   "Nigel Rees"
@@ -31,77 +35,77 @@
     (json/read r)))
 
 ;; Most parse testing is found in pathetic/json-path-test
-(deftest parse-test
+(deftest parse-path-test
   (testing "Parsing JSONPath strings"
     (is (= [[["store"]]]
-           (parse "$['store']")))
+           (parse-path "$['store']")))
     (is (= [[["store"]] [["book"] [0 1]]]
-           (parse "$['store']|$.book[0,1]")))
+           (parse-path "$['store']|$.book[0,1]")))
     (is (= [["store"]]
-           (parse "$['store']|$.book[0,1]" :first? true)))
+           (parse-path "$['store']|$.book[0,1]" :first? true)))
     (is (thrown-with-msg? Exception
                           #"Cannot parse JSONPath string"
-                          (parse "$foobar")))
+                          (parse-path "$foobar")))
     (is (thrown-with-msg? Exception
                           #"Illegal path element in strict mode"
-                          (parse "$..*" :strict? true)))
+                          (parse-path "$..*" :strict? true)))
     (is (thrown-with-msg? Exception
                           #"Illegal path element in strict mode"
-                          (parse "$['store'][-1]" :strict? true)))
+                          (parse-path "$['store'][-1]" :strict? true)))
     (is (thrown-with-msg? Exception
                           #"Illegal path element in strict mode"
-                          (parse "$['store'][0:5:1]" :strict? true)))
+                          (parse-path "$['store'][0:5:1]" :strict? true)))
     (is (thrown-with-msg? Exception
                           #"Illegal path element in strict mode"
-                          (parse "$['store'][0:5:1]"
+                          (parse-path "$['store'][0:5:1]"
                                  :first? true
                                  :strict? true)))))
 
-(deftest enumerate-test
+(deftest get-paths-test
   (testing "Enumerate deterministic JSONPaths"
     (is (= [["universe" 0 "foo" "bar"]]
-           (enumerate {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+           (get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                       "$.universe.*.foo.bar")))
     (is (= [["universe" 1 "foo"] ;; Why is the order reversed?
             ["universe" 0 "foo" "bar"]]
-           (enumerate {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+           (get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                       "$.universe.*.foo.bar"
                       :return-missing? true)))
     (is (= [["store" "book" 0 "author"]
             ["store" "book" 1 "author"]
             ["store" "book" 2 "author"]
             ["store" "book" 3 "author"]]
-           (enumerate goessner-ex "$.store.book[*].author")))
+           (get-paths goessner-ex "$.store.book[*].author")))
     (is (= [["store" "book" 0 "isbn"]
             ["store" "book" 1 "isbn"]
             ["store" "book" 2 "isbn"]
             ["store" "book" 3 "isbn"]]
-           (enumerate goessner-ex "$.store.book[*].isbn" :return-missing? true)))
+           (get-paths goessner-ex "$.store.book[*].isbn" :return-missing? true)))
     (is (= [["store" "book" 2 "isbn"]
             ["store" "book" 3 "isbn"]]
-           (enumerate goessner-ex "$.store.book[*].isbn" :return-missing? false)))
+           (get-paths goessner-ex "$.store.book[*].isbn" :return-missing? false)))
     (is (= [["store" "bicycle" "color"]
             ["store" "bicycle" "price"]]
-           (enumerate goessner-ex "$.store.bicycle..*")))
+           (get-paths goessner-ex "$.store.bicycle..*")))
     (is (= []
-           (enumerate long-statement
+           (get-paths long-statement
                       "$.context.contextActivities.grouping[*]")))
     (is (= [["context" "contextActivities" "grouping"]]
-           (enumerate long-statement
+           (get-paths long-statement
                       "$.context.contextActivities.grouping[*]"
                       :return-missing? true)))
     (is (= [["context" "contextActivities" "grouping"]]
-           (enumerate long-statement
+           (get-paths long-statement
                       "$.context.contextActivities.grouping[0]"
                       :return-missing? true)))
     (is (= [["context" "contextActivities" "category" 0 "id"]]
-           (enumerate long-statement
+           (get-paths long-statement
                       "$.context.contextActivities.category[*].id")))))
 
-(deftest get-at-test-1
+(deftest get-values-test-1
   (testing "Testing JSONPath on example provided by Goessner"
     (are [expected path]
-         (= expected (get-at goessner-ex path :return-missing? true))
+         (= expected (get-values goessner-ex path :return-missing? true))
       ; The authors of all books in the store
       ["Nigel Rees" "Evelyn Waugh" "Herman Melville" "J.R.R. Tolkien"]
       "$.store.book[*].author"
@@ -221,11 +225,11 @@
       [nil nil nil nil]
       "$.store.book[*].blah")))
 
-(deftest get-at-test-2
+(deftest get-values-test-2
   (testing "Testing JSONPath on example Statement"
     ;; Hits
     (are [expected path]
-         (= expected (get-at long-statement path :return-missing? true))
+         (= expected (get-values long-statement path :return-missing? true))
       ["6690e6c9-3ef0-4ed3-8b37-7f3964730bee"]
       "$.id"
       ["2013-05-18T05:32:34.804Z"]
@@ -242,7 +246,7 @@
       "$.context.contextActivities.category[*].id")
     ;; Misses
     (are [path]
-         (= [nil] (get-at long-statement path :return-missing? true))
+         (= [nil] (get-values long-statement path :return-missing? true))
       "$.context.contextActivities.grouping[*]"
       "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid']"
       "$.result.score"
@@ -251,6 +255,26 @@
       "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/moveon']"
       "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/launchparameters']"
       "$.result['https://w3id.org/xapi/cmi5/result/extensions/reason']")))
+
+(deftest get-path-value-map-test
+  (testing "Testing getting JSONPath-to-JSON maps"
+    (is (= {["store" "book" 0 "author"] "Nigel Rees"}
+           (get-path-value-map goessner-ex "$.store.book[0].author")))
+    (is (= {["store" "book" 0 "author"] "Nigel Rees"
+            ["store" "book" 2 "author"] "Herman Melville"}
+           (get-path-value-map goessner-ex "$.store.book[0,2].author")))
+    (is (= {["store" "book" 0 "author"] "Nigel Rees"
+            ["store" "book" 2 "author"] "Herman Melville"}
+           (get-path-value-map goessner-ex "  $.store.book[0].author
+                                            | $.store.book[2].author")))
+    (is (= {["store" "book" 4] nil}
+           (get-path-value-map goessner-ex
+                               "$.store.book[4].author"
+                               :return-missing? true)))
+    (is (= {["context" "contextActivities" "category" 0 "id"]
+            "http://www.example.com/meetings/categories/teammeeting"}
+           (get-path-value-map long-statement
+                               "$.context.contextActivities.category[*].id")))))
 
 (deftest select-keys-at-test
   (testing "Selecting keys with a JSONPath."
