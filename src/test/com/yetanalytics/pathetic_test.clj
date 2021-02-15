@@ -242,6 +242,8 @@
       "$.result.success"
       [true]
       "$.result.completion"
+      [true true]
+      "$.result['success', 'completion']"
       ["http://www.example.com/meetings/categories/teammeeting"]
       "$.context.contextActivities.category[*].id")
     ;; Misses

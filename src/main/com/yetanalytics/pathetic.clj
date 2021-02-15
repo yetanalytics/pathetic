@@ -117,7 +117,7 @@
    
    The following optional arguments are supported:
      :return-missing?  Return paths that cannot match any location
-                       in the JSON object as nil. Default false."
+                       in the JSON data as nil. Default false."
   [json paths & {:keys [return-missing?] :or {return-missing? false}}]
   (letfn [(enum-paths [path] (->> (json-path/path-seqs json path)
                                   (filter-missing (not return-missing?))
@@ -136,7 +136,7 @@
    
    The following optional arguments are supported:
      :return-missing?     Return values that cannot be found in the JSON
-                          object as nil. Default false.
+                          data as nil. Default false.
      :return-duplicates?  Return duplicate values in the array. Default
                           true."
   [json paths & {:keys [return-missing? return-duplicates?]

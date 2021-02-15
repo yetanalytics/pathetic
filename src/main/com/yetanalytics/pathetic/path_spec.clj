@@ -125,8 +125,8 @@
 
 (defn path->spec
   "Given a root spec and a parsed path into it, return the spec for
-   that path or nil if it is not possible. Accepts hint data to
-   dispatch multi-specs and the like"
+   that path, or nil if it is not possible. Accepts optional hint
+   data (i.e. an xAPI Statement) to dispatch multi-specs."
   ([root-spec path]
    (path->spec root-spec path nil))
   ([root-spec path hint-data]

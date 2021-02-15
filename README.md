@@ -1,13 +1,15 @@
 # pathetic
 
-Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/)
+Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
 
 ## Data
 
-Any JSON but given our domain...the JSON is expected to be an xAPI Statement; see `./resources/pathetic/data/long.json`
+Any JSON data is accepted, but given our domain, we will largely be working
+with xAPI Statements. 
+
+The following example is taken from: `./resources/pathetic/data/long.json`
 
 ``` json
-
 {
     "id": "6690e6c9-3ef0-4ed3-8b37-7f3964730bee",
     "actor": {
@@ -139,136 +141,215 @@ Any JSON but given our domain...the JSON is expected to be an xAPI Statement; se
     },
     "version": "1.0.0"
 }
-
 ```
 
-> Within this README, the above JSON xAPI Statement will be refered to as `stmt`
-
+Within this README, the above JSON xAPI Statement will be referred to as `stmt`
 
 ## Usage
 
-moc "API" docs for this util lib that provides idomatic Clojure core-esq fns which expect JSON-path instead of key seqs.
+The following API functions, with the exception of `path-spec/path->spec`, can be found in the `com.yetanalytics.pathetic` namespace.
 
-- Examples are provided but more can be found in test namespaces
+### parse-path
 
+```
+Parse a JSONPath string. Each parsed path is a vector with the
+following entries:
+    '..     recursive descent operator
+    '*      wildcard operator
+    [...]   a vector of strings (keys), integers (array indices), or
+            maps (array slicing operations).
+   
+The following optional arguments are supported:
+    :first?   Return the first path when multiple paths are joined
+              using the \"|\" operator. Default false (in which case
+              a vector of paths is returned).
+    :strict?  If true, disallows recursive descent, array slicing,
+              and negative indices. Conformant to the xAPI Profile
+              spec and used by apply-values. Default false.
+```
 
-### parse
+``` clojure
+(parse-path stmt "$.context.contextActivities.grouping[*]")
+=> [[["context"] ["contextActivities"] ["grouping"] '*]]
 
-`ns` = `com.yetanalytics.pathetic.json-path`
+(parse-path stmt "$.id | $.timestamp")
+=> [[["id"]] [["timestamp"]]]
 
-> "Given a JSON-path, parse it into data"
+(parse-path stmt "$.id | $.timestamp" :first? true)
+=> [["id"]]
+```
+
+### get-paths
+
+```
+Given JSON data and a JSONPath string, return a vector of
+definite key paths. Each key path is a vector of strings (keys)
+or integers (array indices); non-deterministic path entries like
+recursive descent and wildcards are removed. If the string
+contains multiple JSONPaths, we return the key paths for all
+strings.
+   
+The following optional arguments are supported:
+    :return-missing?  Return paths that cannot match any location
+                      in the JSON data as nil. Default false.
+```
 
 ``` clojure
 
-(= (com.yetanalytics.pathetic.json-path/parse
-    "$.context.contextActivities.grouping[*]")
-   [#{"context"}
-    #{"contextActivities"}
-    #{"grouping"}
-    '*])
+(get-paths stmt "$.context.contextActivities.category[*].id")
+=> [["context" "contextActivities" "category" 0 "id"]]
 
-(= (com.yetanalytics.pathetic.json-path/parse
-    "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid']")
-   [#{"context"}
-    #{"extensions"}
-    #{"https://w3id.org/xapi/cmi5/context/extensions/sessionid"}])
+(get-paths stmt "$.context.contextActivities.grouping[*]")
+=> []
+
+(get-paths stmt "$.context.contextActivities.grouping[*]" :return-missing? true)
+=> [["context" "contextActivities" "grouping"]]
 ```
 
+### get-values
 
-### enumerate
-
-`ns` = `com.yetanalytics.pathetic.json-path`
-
-> "Given a JSON-path passed through `parse`, enumerate all possible branching pathways when ambigious within JSON-path"
+```
+Given JSON data and a JSONPath string, return a vector of
+JSON values. If the string contains multiple JSONPaths, we return
+the union of all these values.
+   
+The following optional arguments are supported:
+    :return-missing?     Return values that cannot be found in the
+                         JSON data as nil. Default false.
+    :return-duplicates?  Return duplicate values in the array. Default
+                         true.
+```
 
 ``` clojure
+(get-values stmt "$.id")
+=> ["6690e6c9-3ef0-4ed3-8b37-7f3964730bee"]
 
-(= (vec
-     (com.yetanalytics.pathetic.json-path/enumerate
-      (com.yetanalytics.pathetic.json-path/parse
-       "$.context.contextActivities.grouping[*]")
-      :limit 3))
-   [["context" "contextActivities" "grouping" 0]
-    ["context" "contextActivities" "grouping" 1]
-    ["context" "contextActivities" "grouping" 2]])
+(get-values stmt "$.result.score")
+=> []
+
+(get-values stmt "$.result.score" :return-missing? true)
+=> [nil]
+
+(get-values stmt "$.result['success','completion']")
+=> [true true]
+
+(get-values stmt "$.result['success','completion']" :return-duplicates? false)
+=> [true]
 ```
 
+### get-path-value-map
+
+```
+Given JSON data nd a JSONPath string, return a map associating
+JSON paths to JSON values. Does not return duplicates.
+
+The following optional arguments are supported:
+    :return-missing?  Return path-value pairs where the path cannot
+                      match any location in the JSON data. The object
+                      is returned as nil. Default false.
+```
+
+```clojure
+(get-path-value-map stmt "$.context.contextActivities.category[*].id")
+=> {["context" "contextActivities" "category" 0 "id"]
+    "http://www.example.com/meetings/categories/teammeeting"}
+```
 
 ### select-keys-at
 
-`ns` = `com.yetanalytics.pathetic`
-
-> "Given json data and a path, return the selection. Note that this does not
-  return the json-path selection, just the pruned datastructure as with
-  clojure.core/select-keys"
-
-``` clojure
-
-(= (select-keys-at stmt "$.id")
-   {"id" "6690e6c9-3ef0-4ed3-8b37-7f3964730bee"})
-
-(= (select-keys-at stmt "$.context.contextActivities.category[*].id")
-   {"context"
-     {"contextActivities"
-      {"category"
-       [{"id" "http://www.example.com/meetings/categories/teammeeting"}]}}})
+```
+Given JSON data and a JSONPath string, return a vector of maps
+that represent the key path into the JSON value. If the string
+contains multiple JSONPaths, we return the maps for all strings.
+If no value exists at the selection, return a truncated map with
+"{}" as the innermost possible value.
+   
+The following optional arguments are supported:
+    :first?  Returns the maps corresponding to the first path (if
+             paths are separated by \"|\"). Default false.
 ```
 
-
-### get-at
-
-`ns` = `com.yetanalytics.pathetic`
-
-> "Given json data and a parsed path, return a selection vector."
-
 ``` clojure
+(select-keys-at stmt "$.id")
+=> {"id" "6690e6c9-3ef0-4ed3-8b37-7f3964730bee"}
 
-(= (get-at stmt (json-path/parse "$.id"))
-   ["6690e6c9-3ef0-4ed3-8b37-7f3964730bee"])
-
+(select-keys-at stmt "$.context.contextActivities.category[*].id")
+=> {"context"
+    {"contextActivities"
+     {"category"
+      [{"id" "http://www.example.com/meetings/categories/teammeeting"}]}}}
 ```
 
 
 ### excise
 
-`ns` = `com.yetanalytics.pathetic`
-
-> "Given json data and a parsed path, return the data without the selection, and
-  any empty container.
-  If :prune-empty? is true, will remove empty arrays and maps"
+```
+Given JSON data and a JSONPath string, return the JSON value with
+the elements at the location removed.
+   
+The following optional arguments are supported:
+    :prune-empty?  Removes empty maps and vectors, as well as
+                   key-value pairs where values are empty, after the
+                   elements are excised. Default false.
+```
 
 ``` clojure
-
 (= (dissoc stmt "id")
-   (excise stmt (json-path/parse "$.id")))
-
+   (excise stmt "$.id"))
 ```
 
 
 ### apply-values
 
-`ns` = `com.yetanalytics.pathetic`
+```
+Given JSON data, a JSONPath string, and a JSON value, apply the
+value to the location given by the path. If the location exists,
+update the pre-existing value. Otherwise, create the necessary
+data structures needed to contain the JSON value.
 
-> "Given json data, path and values, apply them to the structure.
-  If there is no place to put a value, enumerate further possible paths and use
-  those."
+The following caveats apply:
+- If an array index skips over any vector entries, those skipped
+    entries will be assigned nil.
+- If a path contains a wildcard and the location up to that
+    point does not exist, create a new vector.
+- If a path contains a wildcard and the location is a collection,
+    append it to the coll. In the case of maps, the key is its
+    current size, e.g. {\"2\" : \"foo\"}.
+- Recursive descent, array slicing, and negative array indices
+    are disallowed (as per strict mode).
+```
 
 ``` clojure
-
 (= (update-in
     stmt
     ["context" "contextActivities" "category"]
     (fn [old] (conj old
-                    {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
-                    {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})))
-   (apply-values
-    stmt
-    (json-path/parse "$.context.contextActivities.category[*].id")
-    ["http://www.example.com/meetings/categories/brainstorm_sesh"
-     "http://www.example.com/meetings/categories/whiteboard_sesh"]))
-
+                    {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"})))
+   (apply-value stmt
+                "$.context.contextActivities.category[*].id"
+                "http://www.example.com/meetings/categories/brainstorm_sesh"))
 ```
 
+### path-spec/path->spec
+
+```
+Given a root spec and a parsed path into it, return the spec for
+that path, or nil if it is not possible. Accepts optional hint
+data (i.e. an xAPI Statement) to dispatch multi-specs
+```
+
+Unlike the previous API functions, this function is designed specifically for xAPI Statements.
+
+```clojure
+(path->spec ::xapi-schema/activity
+            ["definition" "name" "en-US"])
+=> ::xapi-schema/language-map-text
+
+
+(path->spec ::xapi-schema/statement
+            ["object" "definition" "correctResponsesPattern" 0])
+=> string?
+````
 
 ## License
 
