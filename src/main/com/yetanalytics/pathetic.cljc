@@ -76,6 +76,12 @@
 ;; API functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Originally "parse"
+
+(s/fdef parse-path
+  :args (s/cat :path string?)
+  :ret (s/or :first ::json/path :all (s/every ::json/path)))
+
 (defn parse-path
   "Parse a JSONPath string. Each parsed path is a vector with the
    following entries:
@@ -110,6 +116,11 @@
           res))))
 
 ;; Originally "enumerate"
+
+(s/fdef get-paths
+  :args (s/cat :json ::json/json :paths string?)
+  :ret (s/every ::json/path))
+
 (defn get-paths
   "Given JSON data and a JSONPath string, return a vector of
    definite key paths. Each key path is a vector of strings (keys)
@@ -127,11 +138,12 @@
                                   (mapv :path)))]
     (->> paths parse-path (mapcat enum-paths) distinct vec)))
 
+;; Originally "get-at"
+
 (s/fdef get-values
   :args (s/cat :json ::json/json :paths string?)
   :ret (s/every ::json/any))
 
-;; Originally "get-at"
 (defn get-values
   "Given JSON data and a JSONPath string, return a vector of
    JSON values. If the string contains multiple JSONPaths, we return
@@ -151,11 +163,12 @@
     (let [remove-dupes (if return-duplicates? identity distinct)]
       (->> paths parse-path (mapcat enum-jsons) remove-dupes vec))))
 
+;; Formerly "path->data"
+
 (s/fdef get-path-value-map
   :args (s/cat :json ::json/json :paths string?)
   :ret (s/map-of ::json/path ::json/json))
 
-;; Formerly "path->data"
 (defn get-path-value-map
   "Given JSON data nd a JSONPath string, return a map associating
    JSON paths to JSON values. Does not return duplicates.
@@ -176,6 +189,8 @@
          parse-path
          (map enum-json-kv)
          (reduce (fn [acc m] (merge acc m)) {}))))
+
+;; select-keys-at
 
 (s/fdef select-keys-at
   :args (s/cat :json ::json/json :paths string?)
@@ -211,6 +226,12 @@
            (map int-maps->vectors)
            vec))))
 
+;; excise
+
+(s/fdef excise
+  :args (s/cat :json ::json/json :paths string?)
+  :ret ::json/json)
+
 (defn excise
   "Given JSON data and a JSONPath string, return the JSON value with
    the elements at the location removed.
@@ -243,6 +264,11 @@
              paths'))))
 
 ;; Changed from "apply-values" to only accept one value
+
+(s/fdef apply-value
+  :args (s/cat :json ::json/json :paths string? :value ::json/json)
+  :ret ::json/json)
+
 (defn apply-value
   "Given JSON data, a JSONPath string, and a JSON value, apply the
    value to the location given by the path. If the location exists,

@@ -59,6 +59,8 @@
 
 (deftest get-paths-test
   (testing "Enumerate deterministic JSONPaths"
+    (is (= [[]]
+           (get-paths nil "$.foo")))
     (is (= [["universe" 0 "foo" "bar"]]
            (get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                       "$.universe.*.foo.bar")))
@@ -256,6 +258,8 @@
 
 (deftest get-path-value-map-test
   (testing "Testing getting JSONPath-to-JSON maps"
+    (is (= {[] nil}
+           (get-path-value-map nil "$.foo")))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"}
            (get-path-value-map goessner-ex "$.store.book[0].author")))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"
@@ -276,6 +280,8 @@
 
 (deftest select-keys-at-test
   (testing "Selecting keys with a JSONPath."
+    (is (= {nil {}} (select-keys-at nil "$.foo" :first? true)))
+    (is (= {nil {}} (select-keys-at {} "$.foo" :first? true)))
     (are [expected path]
          (= expected (select-keys-at goessner-ex path))
       [{"store" {"book" [{"author" "Nigel Rees"}
@@ -330,6 +336,8 @@
 
 (deftest excise-test
   (testing "Excising values using JSONPath"
+    (is (= nil
+           (excise nil "$.foo")))
     (is (= [:b :c]
            (excise [:a :b :c] "$[0]")))
     (is (= [:a :b :c]
@@ -383,6 +391,8 @@
 
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
+    (is (= {"foo" :a}
+           (apply-value nil "$.foo" :a)))
     (are [expected path]
          (= expected
             (apply-value {"universe" [{"foo" :a} {"bar" :b}]} path :c))
