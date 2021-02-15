@@ -1,5 +1,6 @@
 (ns com.yetanalytics.pathetic.json-path
-  (:require [clojure.core.match :as m]
+  (:require #?(:clj [clojure.core.match :as m]
+               :cljs [cljs.core.match :as m])
             [clojure.string     :as string]
             [clojure.walk       :as w]
             [clojure.spec.alpha :as s]
@@ -156,8 +157,8 @@
 
 (defn- str->int
   [int-str]
-  ;; Clojure uses Java longs, not ints
-  (Long/parseLong int-str))
+  #?(:clj  (Long/parseLong int-str)
+     :cljs (js/parseInt int-str)))
 
 (defn- instaparse-node->pathetic
   [parsed]
@@ -314,7 +315,8 @@
             keys)))
 
 (defn- init-queue [init]
-  (conj clojure.lang.PersistentQueue/EMPTY init))
+  #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
+     :cljs (conj cljs.core/PersistentQueue.EMPTY init)))
 
 ;; Helper specs
 

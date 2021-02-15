@@ -1,13 +1,21 @@
 (ns com.yetanalytics.pathetic-test
-  (:require [clojure.test      :refer [deftest testing is are]]
-            [clojure.java.io   :as io]
-            [clojure.data.json :as json]
-            [com.yetanalytics.pathetic 
-             :refer [parse-path
-                     get-paths
-                     get-values
-                     get-path-value-map
-                     select-keys-at excise apply-value]]))
+  (:require #?(:clj [clojure.test :refer [deftest testing is are]]
+               :cljs [cljs.test :refer [deftest testing is are]])
+            [com.yetanalytics.pathetic :refer [parse-path
+                                               get-paths
+                                               get-values
+                                               get-path-value-map
+                                               select-keys-at
+                                               excise
+                                               apply-value]])
+  #?(:clj (:require [com.yetanalytics.pathetic-test-macros
+                     :refer [read-long-statement
+                             parse-failed?
+                             strict-parse-failed?]])
+     :cljs (:require-macros [com.yetanalytics.pathetic-test-macros
+                             :refer [read-long-statement
+                                     parse-failed?
+                                     strict-parse-failed?]])))
 
 (def goessner-ex {"store" {"book"    [{"category" "reference"
                                        "author"   "Nigel Rees"
@@ -30,9 +38,7 @@
                            "bicycle" {"color" "red"
                                       "price" 20}}})
 
-(def long-statement
-  (with-open [r (io/reader (io/resource "pathetic/data/long.json"))]
-    (json/read r)))
+(def long-statement (read-long-statement))
 
 ;; Most parse testing is found in pathetic/json-path-test
 (deftest parse-path-test
@@ -43,23 +49,13 @@
            (parse-path "$['store']|$.book[0,1]")))
     (is (= [["store"]]
            (parse-path "$['store']|$.book[0,1]" :first? true)))
-    (is (thrown-with-msg? Exception
-                          #"Cannot parse JSONPath string"
-                          (parse-path "$foobar")))
-    (is (thrown-with-msg? Exception
-                          #"Illegal path element in strict mode"
-                          (parse-path "$..*" :strict? true)))
-    (is (thrown-with-msg? Exception
-                          #"Illegal path element in strict mode"
-                          (parse-path "$['store'][-1]" :strict? true)))
-    (is (thrown-with-msg? Exception
-                          #"Illegal path element in strict mode"
-                          (parse-path "$['store'][0:5:1]" :strict? true)))
-    (is (thrown-with-msg? Exception
-                          #"Illegal path element in strict mode"
-                          (parse-path "$['store'][0:5:1]"
-                                 :first? true
-                                 :strict? true)))))
+    (is (parse-failed? (parse-path "$foobar")))
+    (is (strict-parse-failed? (parse-path "$..*" :strict? true)))
+    (is (strict-parse-failed? (parse-path "$['store'][-1]" :strict? true)))
+    (is (strict-parse-failed? (parse-path "$['store'][0:5:1]" :strict? true)))
+    (is (strict-parse-failed? (parse-path "$['store'][0:5:1]"
+                                          :first? true
+                                          :strict? true)))))
 
 (deftest get-paths-test
   (testing "Enumerate deterministic JSONPaths"
@@ -407,9 +403,7 @@
       {"universe" [{"foo" :a} {"bar" :b}] "1" :c}         "$.*"
       [:c]                                                "$[0]"
       nil                                                 "$")
-    (is (thrown-with-msg? Exception
-                          #"Illegal path element in strict mode"
-                          (apply-value {"universe" :a} "$..*" :c)))
+    (is (strict-parse-failed? (apply-value {"universe" :a} "$..*" :c)))
     ;; Tests on Statement
     (is (= (assoc long-statement "foo" "bar")
            (apply-value long-statement "$.foo" "bar")))

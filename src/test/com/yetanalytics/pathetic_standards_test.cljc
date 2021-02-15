@@ -1,6 +1,10 @@
-(ns com.yetanalytics.standards-test
+(ns com.yetanalytics.pathetic-standards-test
   (:require [clojure.test :refer [deftest testing is]]
-            [com.yetanalytics.pathetic :refer [get-values]]))
+            [com.yetanalytics.pathetic :refer [get-values]])
+  #?(:clj (:require [com.yetanalytics.pathetic-test-macros
+                     :refer [parse-failed?]])
+     :cljs (:require-macros [com.yetanalytics.pathetic-test-macros
+                             :refer [parse-failed?]])))
 
 ;; This test suite is designed to compare Pathetic against the JSONPath
 ;; examples given by Christoph Burgmer's test suite at:
@@ -12,11 +16,6 @@
 ;; for lack of consensus.
 ;; 
 ;; Note: We do not test script/filter expressions as we do not support them.
-
-(defmacro parse-failed? [form]
-  `(try ~form
-        (catch Exception e# (= "Cannot parse JSONPath string"
-                               (ex-message e#)))))
 
 (def store-example {"store" {"book"    [{"category" "reference"
                                          "author"   "Nigel Rees"

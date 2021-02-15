@@ -1,20 +1,19 @@
 (ns com.yetanalytics.pathetic.path-spec-test
   (:require [clojure.test :refer [deftest testing is]]
             [clojure.spec.alpha :as s]
-            [clojure.java.io    :as io]
-            [clojure.data.json  :as json]
             [xapi-schema.spec   :as xs]
             [com.yetanalytics.pathetic.json-path :as json-path]
-            [com.yetanalytics.pathetic.path-spec
-             :refer [spec-map path->spec]]))
+            [com.yetanalytics.pathetic.path-spec :refer [spec-map
+                                                         path->spec]])
+  #?(:clj (:require [com.yetanalytics.pathetic-test-macros
+                     :refer [read-long-statement]])
+     :cljs (:require-macros [com.yetanalytics.pathetic-test-macros
+                             :refer [read-long-statement]])))
 
 (deftest spec-map-test
   (is (s/valid? :com.yetanalytics.pathetic.path-spec/spec-map spec-map)))
 
-(def long-statement
-  (with-open
-   [r (io/reader (io/resource "pathetic/data/long.json"))]
-    (json/read r)))
+(def long-statement (read-long-statement))
 
 (def path-value-map
   (reduce (fn [acc {jsn :json pth :path}] (assoc acc pth jsn))

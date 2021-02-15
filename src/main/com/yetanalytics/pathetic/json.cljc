@@ -25,8 +25,8 @@
 ;; recursive descent, wildcards, unions, or array splicing).
 
 (s/def ::key
-  (s/or :index (s/int-in 0 Integer/MAX_VALUE) ; Negative indices get normalized
-        :key string?))
+  (s/or :index (complement neg-int?) ; Negative indices get normalized
+        :key   string?))
 
 (s/def ::path (s/every ::key
                        :type vector?))

@@ -1,8 +1,8 @@
 (ns com.yetanalytics.pathetic.json-test
   (:require [clojure.test :refer [deftest testing is]]
             [clojure.spec.alpha :as s]
-            [com.yetanalytics.pathetic.json
-             :as json :refer [recursive-descent jassoc jassoc-in]]))
+            [com.yetanalytics.pathetic.json :as json
+             :refer [recursive-descent jassoc jassoc-in]]))
 
 (def store-ex {"store"
                {"book"

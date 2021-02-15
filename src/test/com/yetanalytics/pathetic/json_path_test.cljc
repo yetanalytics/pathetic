@@ -1,7 +1,9 @@
 (ns com.yetanalytics.pathetic.json-path-test
   (:require [clojure.test :refer [deftest testing is are]]
-            [com.yetanalytics.pathetic.json-path
-             :refer [path->string parse parse-first is-parse-failure?]]))
+            [com.yetanalytics.pathetic.json-path :refer [path->string
+                                                         parse
+                                                         parse-first
+                                                         is-parse-failure?]]))
 
 (deftest path->string-test
   (testing "Converting parsed paths back to strings"
