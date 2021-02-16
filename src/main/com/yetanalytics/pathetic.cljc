@@ -50,10 +50,6 @@
           :else
           node)))
 
-(defn- take-except-last
-  [coll]
-  (take (-> coll count dec) coll))
-
 (defn- remove-nth
   [coll n]
   (vec (concat (subvec coll 0 n)
@@ -211,7 +207,7 @@
             [path]
             (reduce (fn [json {jsn :json pth :path}]
                       (if (nil? jsn)
-                        (assoc-in json (take-except-last pth) {})
+                        (assoc-in json (butlast pth) {})
                         (assoc-in json pth jsn)))
                     {}
                     (json-path/path-seqs json path)))]
@@ -248,7 +244,7 @@
         paths'   (->> paths
                       parse-path
                       (mapv (partial json-path/path-seqs json))
-                      (apply concat) ;; Flatten coll of path seqs
+                      (apply concat)               ;; Flatten coll of path seqs
                       (filterv (complement :fail)) ;; Don't excise fail paths
                       (mapv :path)
                       (sort cmp-vecs) ;; Sort/reverse so higher-index vector
@@ -256,7 +252,7 @@
     (prune-fn
      (reduce (fn [json path]
                (let [last-key (last path)
-                     rem-keys (take-except-last path)]
+                     rem-keys (butlast path)]
                  (if (empty? rem-keys)
                    (rm-fn json last-key) ;; update-in fails on empty key-paths
                    (update-in json rem-keys rm-fn last-key))))
