@@ -63,14 +63,14 @@
 
 (def jsonpath-instaparser
   (insta/parser
-   "jsonpaths  := <ws>* jsonpath (<ws>* <'|'> <ws>* jsonpath)* <ws>*;
+   "jsonpaths  := <ws> jsonpath (<ws> <'|'> <ws> jsonpath)* <ws>;
     jsonpath   := <root> children?;
     <children> := child+;
     child      := bracket-child | dot-child;
 
-    <bracket-child>   := double-dot? <'['> <ws*> bracket-content <ws*> <']'>;
+    <bracket-child>   := double-dot? <'['> <ws> bracket-content <ws> <']'>;
     <bracket-content> := wildcard | bracket-union;
-    bracket-union     := union-element (<ws>* <','> <ws>* union-element)*;
+    bracket-union     := union-element (<ws> <','> <ws> union-element)*;
     <union-element>   := int-literal | string-literal | array-slice;
     array-slice       := int-literal? ':' int-literal? (':' int-literal?)?;
   
@@ -83,11 +83,11 @@
     <string-literal-sq> := #'\\'(?:\\\\[\\'bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\\'\\\\])*\\'';
     <string-literal-dq> := #'\"(?:\\\\[\"bfnrt/\\\\]|\\\\u[a-fA-F0-9]{4}|[^\"\\\\])*\"'
 
-    root        := '$';
-    wildcard    := '*';
-    double-dot  := '..';
-    dot         := '.';
-    ws          := #'\\s'
+    root       := '$';
+    wildcard   := '*';
+    double-dot := '..';
+    dot        := '.';
+    ws         := #'\\s*'
   "))
 
 ;; ===== AST (post-parse) =====
