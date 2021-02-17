@@ -62,10 +62,10 @@
            (get-values {"key" "value"} "$.missing" :return-missing? true)))
     (is (= [42 200 500] ;; Original order: [200 42 500]
            (get-values {"k"   [{"key" "some value"}, {"key" 42}]
-                    "kk"  [[{"key" 100} {"key" 200} {"key" 300}]
-                           [{"key" 400} {"key" 500} {"key" 600}]]
-                    "key" [0 1]}
-                   "$..[1].key")))
+                        "kk"  [[{"key" 100} {"key" 200} {"key" 300}]
+                               [{"key" 400} {"key" 500} {"key" 600}]]
+                        "key" [0 1]}
+                       "$..[1].key")))
     (is (= [1 1]
            (get-values [{"a" 1} {"a" 1}] "$[*].a")))
     (is (= [1]
@@ -79,10 +79,10 @@
     ;; Original order: ["russian dolls" "something" "top" "value" {"key" "russian dolls"}]
     (is (= ["top" "value" "something" {"key" "russian dolls"} "russian dolls"]
            (get-values {"object" {"key"   "value"
-                              "array" [{"key" "something"}
-                                       {"key" {"key" "russian dolls"}}]}
-                    "key"    "top"}
-                   "$..key")))
+                                  "array" [{"key" "something"}
+                                           {"key" {"key" "russian dolls"}}]}
+                        "key"    "top"}
+                       "$..key")))
     ;; Original order: [12.99 19.95 22.99 8.95 8.99]
     (is (= [8.95 12.99 8.99 22.99 19.95]
            (get-values store-example "$.store..price")))
@@ -120,18 +120,18 @@
          (get-values {"key" "value"  "'key'" 42} "$.'key'")))
     (is (parse-failed? ;; No consensus, JS result
          (get-values {"object" {"key"   "value"
-                            "'key'" 100
-                            "array" [{"key"   "something"
-                                      "'key'" 0}
-                                     {"key"   {"key" "russian dolls"}
-                                      "'key'" {"'key'" 99}}]}
-                  "key"    "top"
-                  "'key'"  42}
-                 "$..'key'")))
+                                "'key'" 100
+                                "array" [{"key"   "something"
+                                          "'key'" 0}
+                                         {"key"   {"key" "russian dolls"}
+                                          "'key'" {"'key'" 99}}]}
+                      "key"    "top"
+                      "'key'"  42}
+                     "$..'key'")))
     (is (parse-failed? ;; No consensus, JS result
          (get-values {"some.key"   42
-                  "some"       {"key" "value"}
-                  "'some.key'" 43}
+                      "some"       {"key" "value"}
+                      "'some.key'" 43}
                  "$.'some.key'")))
     (is (parse-failed? ;; No consensus, JS result
          (get-values {" a" 1 "a" 2 " a " 3 "" 4} "$. a")))
@@ -142,18 +142,18 @@
     (is (= [] (get-values {} "$.*")))
     (is (= ["string" 42 {"key" "value"} [0 1]]
            (get-values {"some"   "string"
-                    "int"    42
-                    "object" {"key" "value"}
-                    "array"  [0 1]}
-                   "$.*")))
+                        "int"    42
+                        "object" {"key" "value"}
+                        "array"  [0 1]}
+                       "$.*")))
     (is (= [42] (get-values [{"bar" [42]}] "$.*.bar.*")))
     (is (= [1 2 3 4 5 6] (get-values [[1 2 3] [4 5 6]] "$.*.*")))
     ;; Original order: ["string" "value" 0 1 [0 1] {"complex" "string" "primitives" [0 1]}]
     (is (= ["value" {"complex" "string", "primitives" [0 1]} "string" [0 1] 0 1]
            (get-values {"key"         "value"
-                    "another key" {"complex"    "string"
-                                   "primitives" [0 1]}}
-                   "$..*")))
+                        "another key" {"complex"    "string"
+                                       "primitives" [0 1]}}
+                       "$..*")))
     (is (= [40 nil 42] ;; Original order: [40 42 nil]
            (get-values [40 nil 42] "$..*")))
     (is (= []
@@ -177,33 +177,33 @@
     ;; Original order: ["deepest" "first nested" "first" "more" {"nested" ["deepest" "second"]}]
     (is (= ["first" "first nested" {"nested" ["deepest" "second"]} "deepest" "more"]
            (get-values ["first" {"key" ["first nested"
-                                    {"more" [{"nested" ["deepest" "second"]}
-                                             ["more" "values"]]}]}]
-                   "$..[0]")))
+                                        {"more" [{"nested" ["deepest" "second"]}
+                                                 ["more" "values"]]}]}]
+                       "$..[0]")))
     (is (= []
            (get-values {"ü" 42} "$['ü']")))
     (is (= [nil]
            (get-values {"ü" 42} "$['ü']" :return-missing? true)))
     (is (= ["42"]
            (get-values {"one"      {"key" "value"}
-                    "two"      {"some" "more"
-                                "key"  "other value"}
-                    "two.some" "42"}
-                   "$['two.some']")))
+                        "two"      {"some" "more"
+                                    "key"  "other value"}
+                        "two.some" "42"}
+                       "$['two.some']")))
     (is (= ["value"]
            (get-values {"key" "value"} "$[\"key\"]")))
     (is (parse-failed?
          (get-values {""   42
-                  "''" 123
-                  "\"\"" 222} "$[]")))
+                      "''" 123
+                      "\"\"" 222} "$[]")))
     (is (= [42]
            (get-values {""   42
-                    "''" 123
-                    "\"\"" 222} "$['']")))
+                        "''" 123
+                        "\"\"" 222} "$['']")))
     (is (= [42]
            (get-values {""   42
-                    "''" 123
-                    "\"\"" 222} "$[\"\"]")))
+                        "''" 123
+                        "\"\"" 222} "$[\"\"]")))
     ;; Int array subscripts (indices)
     (is (= []
            (get-values ["one element"] "$[-2]")))
@@ -234,50 +234,50 @@
     ;; Special characters as array subscripts
     (is (= ["value"]
            (get-values {":"       "value"
-                    "another" "entry"} "$[':']")))
+                        "another" "entry"} "$[':']")))
     (is (= [42]
            (get-values {"]" 42} "$[']']")))
     (is (= ["value"]
            (get-values {"@"       "value"
-                    "another" "entry"} "$['@']")))
+                        "another" "entry"}
+                       "$['@']")))
     (is (= ["value"]
            (get-values {"."       "value"
-                    "another" "entry"} "$['.']")))
+                        "another" "entry"}
+                       "$['.']")))
     (is (= [1]
            (get-values {"key" 42
-                    ".*"  1
-                    ""    10} "$['.*']")))
+                        ".*"  1
+                        ""    10}
+                       "$['.*']")))
     (is (= ["value"]
-           (get-values {"\""       "value"
-                    "another" "entry"} "$['\"']")))
+           (get-values {"\"" "value" "another" "entry"} "$['\"']")))
     (is (= ["value"]
            (get-values {"0" "value"} "$['0']")))
     (is (= ["value"]
-           (get-values {"$"       "value"
-                    "another" "entry"} "$['$']")))
+           (get-values {"$" "value" "another" "entry"} "$['$']")))
     (is (= ["value"]
-           (get-values {","       "value"
-                    "another" "entry"} "$[',']")))
+           (get-values {"," "value" "another" "entry"} "$[',']")))
     (is (= ["value"]
-           (get-values {"*"       "value"
-                    "another" "entry"} "$['*']")))
+           (get-values {"*" "value" "another" "entry"} "$['*']")))
     (is (= []
            (get-values {"another" "entry"} "$['*']")))
     (is (= [2]
            (get-values {" a"    1
-                    "a"     2
-                    " a "   3
-                    "a "    4
-                    " 'a' " 5
-                    " 'a"   6
-                    "a' "   7
-                    " \"a\" " 8
-                    "\"a\""   9}
-                   "$[ 'a' ]")))
+                        "a"     2
+                        " a "   3
+                        "a "    4
+                        " 'a' " 5
+                        " 'a"   6
+                        "a' "   7
+                        " \"a\" " 8
+                        "\"a\""   9}
+                       "$[ 'a' ]")))
     (is (= [1]
            (get-values {"nice" 42
-                    "ni.*" 1
-                    "mice" 100} "$['ni.*']")))
+                        "ni.*" 1
+                        "mice" 100}
+                       "$['ni.*']")))
     ;; In the following examples, we deviate from consensus/common sense
     (is (parse-failed? ;; Consensus returns ["value"]; need extra backslashes
          (get-values {"\\" "value"} "$['\\']")))
@@ -302,10 +302,10 @@
            (get-values [40 nil 42] "$[*]")))
     (is (= ["string" 42 {"key" "value"} [0 1]]
            (get-values {"some"   "string"
-                    "int"    42
-                    "object" {"key" "value"}
-                    "array"  [0 1]}
-                   "$[*]")))
+                        "int"    42
+                        "object" {"key" "value"}
+                        "array"  [0 1]}
+                       "$[*]")))
     (is (= [1 2 "a" "b"]
            (get-values [[1 2] ["a" "b"] [0, 0]] "$[0:2][*]")))
     (is (= ["ey" "bee"]
@@ -315,40 +315,40 @@
     ;; Original order ["string" "value" 0 1 [0 1] {"complex" "string" "primitives" [0 1]}]
     (is (= ["value" {"complex" "string" "primitives" [0 1]} "string" [0 1] 0 1]
            (get-values {"key"         "value"
-                    "another key" {"complex"    "string"
-                                   "primitives" [0 1]}}
-                   "$..[*]")))
+                        "another key" {"complex"    "string"
+                                       "primitives" [0 1]}}
+                       "$..[*]")))
     ;; Pathological json-path strings
     ;; In cases with no consensus, follow JS jsonpath library
     (is (parse-failed?
          (get-values {"single'quote" "value"} "$['single'quote']")))
     (is (parse-failed?
          (get-values {"one"        {"key" "value"}
-                  "two"        {"some" "more"
-                                "key"  "other value"}
-                  "two.some"   "42"
-                  "two'.'some" "43"}
-                 "$['two'.'some']")))
+                      "two"        {"some" "more"
+                                    "key"  "other value"}
+                      "two.some"   "42"
+                      "two'.'some" "43"}
+                     "$['two'.'some']")))
     (is (parse-failed?
          (get-values {"one"      {"key" "value"}
-                  "two"      {"some" "more"
-                              "key"  "other value"}
-                  "two.some" "42"}
-                 "$[two.some]")))
+                      "two"      {"some" "more"
+                                  "key"  "other value"}
+                      "two.some" "42"}
+                     "$[two.some]")))
     (is (parse-failed?
          (get-values {"key" "value"} "$[key]")))
     (is (parse-failed?
          (get-values {"key"   "value"
-                  "other" {"key" [{"key" 42}]}}
-                 "$.['key']")))
+                      "other" {"key" [{"key" 42}]}}
+                     "$.['key']")))
     (is (parse-failed?
          (get-values {"key"   "value"
-                  "other" {"key" [{"key" 42}]}}
-                 "$.[\"key\"]")))
+                      "other" {"key" [{"key" 42}]}}
+                     "$.[\"key\"]")))
     (is (parse-failed?
          (get-values {"key"   "value"
-                  "other" {"key" [{"key" 42}]}}
-                 "$.[key]")))))
+                      "other" {"key" [{"key" 42}]}}
+                     "$.[key]")))))
 
 (deftest get-at-test-union
   (testing "get-at function on union operator"
@@ -368,40 +368,40 @@
            (get-values {"key" "value" "another" "entry"} "$['missing','key']")))
     (is (= [nil "value"]
            (get-values {"key" "value" "another" "entry"}
-                   "$['missing','key']"
-                   :return-missing? true)))
+                       "$['missing','key']"
+                       :return-missing? true)))
     (is (= ["cc1" "dd1" "cc2" "dd2"]
            (get-values [{"c" "cc1" "d" "dd1" "e" "ee1"}
-                    {"c" "cc2" "d" "dd2" "e" "ee2"}]
-                   "$[:]['c','d']")))
+                        {"c" "cc2" "d" "dd2" "e" "ee2"}]
+                       "$[:]['c','d']")))
     (is (= ["cc1" "dd1"]
            (get-values [{"c" "cc1" "d" "dd1" "e" "ee1"}
-                    {"c" "cc2" "d" "dd2" "e" "ee2"}]
-                   "$[0]['c','d']")))
+                        {"c" "cc2" "d" "dd2" "e" "ee2"}]
+                       "$[0]['c','d']")))
     (is (= ["cc1" "dd1" "cc2" "dd2"]
            (get-values [{"c" "cc1" "d" "dd1" "e" "ee1"}
-                    {"c" "cc2" "d" "dd2" "e" "ee2"}]
-                   "$.*['c','d']")))
+                        {"c" "cc2" "d" "dd2" "e" "ee2"}]
+                       "$.*['c','d']")))
     ;; Original order: ["cc1" "cc2" "cc3" "cc5" "dd1" "dd2" "dd4"]
     (is (= ["cc1" "dd1" "cc2" "dd2" "cc3" "dd4" "cc5"]
            (get-values [{"c" "cc1" "d" "dd1" "e" "ee1"}
-                    {"c" "cc2" "child" {"d" "dd2"}}
-                    {"c" "cc3"}
-                    {"d" "dd4"}
-                    {"child" {"c" "cc5"}}]
-                   "$..['c','d']")))
+                        {"c" "cc2" "child" {"d" "dd2"}}
+                        {"c" "cc3"}
+                        {"d" "dd4"}
+                        {"child" {"c" "cc5"}}]
+                       "$..['c','d']")))
     (is (= [5 2]
            (get-values [1 2 3 4 5] "$[4,1]")))
     (is (= ["string" "string" nil true false false "string" 5.4]
            (get-values {"a" ["string" nil true]
-                    "b" [false "string" 5.4]}
-                   "$.*[0,:5]")))
+                        "b" [false "string" 5.4]}
+                       "$.*[0,:5]")))
     (is (= ["value" "other value"]
            (get-values {"one"   {"key" "value"}
-                    "two"   {"k" "v"}
-                    "three" {"some" "more"
-                             "key"  "other value"}}
-                   "$['one','three'].key")))
+                        "two"   {"k" "v"}
+                        "three" {"some" "more"
+                                 "key"  "other value"}}
+                       "$['one','three'].key")))
     (is (= [2 3 5] ;; no consensus
            (get-values [1 2 3 4 5] "$[1:3,4]")))
     (is (= ["first" "second"]
@@ -422,21 +422,21 @@
            (get-values ["first" "second" "third"] "$[7:10]" :return-missing? true)))
     (is (= []
            (get-values {":"    42
-                    "more" "string"
-                    "a"    1
-                    "b"    2
-                    "c"    3
-                    "1:3"  "nice"}
-                   "$[1:3]")))
+                        "more" "string"
+                        "a"    1
+                        "b"    2
+                        "c"    3
+                        "1:3"  "nice"}
+                       "$[1:3]")))
     (is (= [nil] ;; Returns one nil because JSON is a map, not vector
            (get-values {":"    42
-                    "more" "string"
-                    "a"    1
-                    "b"    2
-                    "c"    3
-                    "1:3"  "nice"}
-                   "$[1:3]"
-                   :return-missing? true)))
+                        "more" "string"
+                        "a"    1
+                        "b"    2
+                        "c"    3
+                        "1:3"  "nice"}
+                       "$[1:3]"
+                       :return-missing? true)))
     (is (= ["second" "third"]
            (get-values ["first" "second" "third"] "$[1:10]")))
     (is (= ["second" "third"] ;; Slicing excludes out-of-bounds values
@@ -444,16 +444,16 @@
     ;; Array slice on large numbers
     (is (= ["third" "fourth" "fifth"]
            (get-values ["first" "second" "third" "fourth" "fifth"]
-                   "$[2:113667776004]")))
+                       "$[2:113667776004]")))
     (is (= ["third" "second" "first"] ;; no consensus, JS jsonpath output
            (get-values ["first" "second" "third" "fourth" "fifth"]
-                   "$[2:-113667776004:-1]")))
+                       "$[2:-113667776004:-1]")))
     (is (= ["first" "second"]
            (get-values ["first" "second" "third" "fourth" "fifth"]
-                   "$[-113667776004:2]")))
+                       "$[-113667776004:2]")))
     (is (= ["fifth" "fourth"] ;; no consensus, but this is a common output
            (get-values ["first" "second" "third" "fourth" "fifth"]
-                   "$[113667776004:2:-1]")))
+                       "$[113667776004:2:-1]")))
     ;; Array slice w/ negative bounds
     (is (= []
            (get-values [2 "a" 4 5 100 "nice"] "$[-4:-5]")))
@@ -534,12 +534,12 @@
          (get-values [{"a" {"b" "c"}} [0 1]] "$..")))
     (is (parse-failed?
          (get-values {"some key" "value" "key" {"complex" "string" "primitives" [0 1]}}
-                 "$.key..")))
+                     "$.key..")))
     (is (= [{"key"         "value"
              "another key" {"complex" ["a" 1]}}] 
            (get-values {"key"         "value"
-                    "another key" {"complex" ["a" 1]}}
-                   "$")))
+                        "another key" {"complex" ["a" 1]}}
+                       "$")))
     (is (= [42]
            (get-values 42 "$")))
     (is (= [false]
