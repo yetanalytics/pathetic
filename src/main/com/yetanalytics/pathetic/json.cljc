@@ -82,7 +82,7 @@
                    (recur (inc idx) (assoc coll' idx nil))))))))
 
 (defn jassoc-in
-  "like assoc-in, but for jassoc"
+  "Like assoc-in, but for jassoc"
   [m [k & ks] v]
   (if ks
     (jassoc m k (jassoc-in (get m k) ks v))

@@ -2,7 +2,8 @@
   "Given a path into an xAPI structure, return a spec from xapi-schema"
   (:require [clojure.spec.alpha :as s]
             [xapi-schema.spec   :as xs]
-            [com.yetanalytics.pathetic.json :as json]))
+            [com.yetanalytics.pathetic.json :as json]
+            [com.yetanalytics.pathetic :as pathetic]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs + spec maps
@@ -123,12 +124,12 @@
 
 ;; TODO: Parse string paths
 
-(defn path->spec
+(defn path->spec*
   "Given a root spec and a parsed path into it, return the spec for
    that path, or nil if it is not possible. Accepts optional hint
    data (i.e. an xAPI Statement) to dispatch multi-specs."
   ([root-spec path]
-   (path->spec root-spec path nil))
+   (path->spec* root-spec path nil))
   ([root-spec path hint-data]
    (if (empty? path)
      (do (assert (or (s/get-spec root-spec) (fn? root-spec) (s/spec? root-spec))
@@ -183,3 +184,34 @@
        (throw (ex-info "No spec in map"
                        {:type ::no-spec-in-map
                         :spec root-spec}))))))
+
+(defn path->spec
+  "Given a root spec and a parsed path into it, return the spec for
+   that path, or nil if it is not possible. Accepts optional hint
+   data (i.e. an xAPI Statement) to dispatch multi-specs.
+   
+   `path->spec` has the following caveats:
+   - Recursive descent, negative indices, and array slicing are
+     not allowed (i.e. strict mode).
+   - Wildcards will be conformed to the index 0 (even for map
+     values).
+   - Only the first index or key in a union will be used.
+   - If multiple paths are separated by \"|\", only the first
+     will be used."
+  ([root-spec path]
+   (path->spec root-spec path nil))
+  ([root-spec path hint-data]
+   (let [parsed-path
+         (mapv (fn [element]
+                 (cond (= '* element)
+                       0
+                       (vector? element)
+                       (first element)
+                       :else
+                       (throw (ex-info
+                               "Invalid element"
+                               {:type     :invalid-path-spec-element
+                                :path-str path
+                                :element  element}))))
+               (first (pathetic/parse-path path :strict? true)))]
+     (path->spec* root-spec parsed-path hint-data))))
