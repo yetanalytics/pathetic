@@ -103,8 +103,8 @@
                       (assoc res :type ::invalid-path)))
       (do (when strict?
             (when-let [strict-elem (if first?
-                                     (json-path/get-not-strict res)
-                                     (some json-path/get-not-strict res))]
+                                     (json-path/test-strict-path res)
+                                     (some json-path/test-strict-path res))]
               (throw (ex-info "Illegal path element in strict mode"
                               {:type    ::invalid-strict-path
                                :paths   res

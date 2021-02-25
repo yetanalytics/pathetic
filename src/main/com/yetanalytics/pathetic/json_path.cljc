@@ -26,19 +26,47 @@
                                 :slice/step]))
 
 (s/def ::keyset
-  (s/every (s/or :key string? :index int? :range ::range)
+  (s/every (s/or :key string? :index int? :slice ::slice)
+           :type vector?
+           :min-count 1
+           :gen-max 5))
+
+(s/def ::element
+  (s/or :keyset ::keyset
+        :wildcard ::wildcard
+        :recursive ::recursive))
+
+(s/def ::json-path
+  (s/every ::element
            :type vector?
            :min-count 1))
 
-(s/def ::json-path
-  (s/every (s/or :keyset    ::keyset
-                 :wildcard  ::wildcard
-                 :recursive ::recursive)
-           :type vector?))
+(s/def ::json-paths
+  (s/every ::json-path
+           :type vector?
+           :min-count 1))
 
-(s/def ::json-paths (s/every ::json-path
-                             :type vector?
-                             :min-count 1))
+;; Strict versions of above
+
+(s/def ::strict-keyset
+  (s/every (s/or :key string? :index nat-int?)
+           :type vector?
+           :min-count 1
+           :gen-max 5))
+
+(s/def ::strict-element
+  (s/or :keyset   ::strict-keyset
+        :wildcard ::wildcard))
+
+(s/def ::strict-json-path
+  (s/every ::strict-element
+           :type vector?
+           :min-count 1))
+
+(s/def ::strict-json-paths
+  (s/every ::strict-json-paths
+           :type vector?
+           :min-count 1))
 
 ;; Instaparse parsing failures
 
@@ -93,9 +121,8 @@
 ;; ===== AST (post-parse) =====
 ;; jsonpaths      := jsonpath+
 ;; jsonpath       := child*
-;; child          := identifier | int-literal | string-literal |
-;;                   array-slice | bracket-union |
-;;                   wildcard | double-dot
+;; child          := identifier | int-literal | string-literal
+;;                   | bracket-union | double-dot | wildcard
 ;; bracket-union  := [int-literal | string-literal | array-slice ...]
 ;; array-slice    := {:start int-literal | :vec-lower | :vec-higher
 ;;                    :end   int-literal | :vec-lower | :vec-higher
@@ -215,53 +242,58 @@
 ;; Auxillary/misc functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(s/fdef is-parse-failure?
+  :args (s/cat :x (s/or :success ::json-paths :failure ::parse-failure))
+  :ret boolean?)
+
 (defn is-parse-failure?
   "Returns true if the given object is error data from a parse
    failure, false otherwise."
   [x]
   (s/valid? ::parse-failure x))
 
-(defn get-not-strict
-  "Returns the first non-strict element in a parsed path, which 
+(s/fdef test-strict-path
+  :args (s/cat :parsed-path ::json-path)
+  :ret (s/nilable ::element))
+
+(defn test-strict-path
+  "Test if a parsed path is valid in strict mode. If so, returns
+   nil; if not, then returns the first non-strict element, which 
    is any one of the following:
    - Recursive descent operator (\"..\")
    - Array slices
    - Negative array indices"
   [parsed-path]
-  (letfn [(not-strict-element
-            [elem]
-           (cond (= '.. elem)
-                 elem
-                 (= '* elem)
-                 nil
-                 :else ;; vector
-                 (some (fn [x] (when (or (map? x) (neg-int? x)) x))
-                       elem)))]
-    (some not-strict-element parsed-path)))
+  (->> parsed-path
+       (filter (fn [e] (not (s/valid? ::strict-element e))))
+       first))
 
-(defn path-element->string
-  "Stringify a path element, e.g. [{:start 0 :end 5 :step 1}]
-   becomes \"[0:5:1]\"."
-  [element]
-  (letfn [(sub-elem->str
-            [elm]
-            (if (map? elm)
-              (str (:start elm) ":" (:end elm) ":" (:step elm))
-              (str elm)))]
-    (if (vector? element)
-      ;; Keys/indices/slices
-      (string/join "," (map sub-elem->str element))
-      ;; ".." and "*"
-      (str element))))
+(s/fdef path->string
+  :args (s/cat :parsed-path ::json-path)
+  :ret string?)
 
 (defn path->string
   "Stringify a parsed path, e.g. ['* ['books']]
    becomes \"$['*']['books']\"."
   [parsed-path]
-  (letfn [(elem->str [elm]
-                     (if-not (= '.. elm)
-                       (str "[" (path-element->string elm) "]")
-                       (path-element->string elm)))]
+  (letfn [(sub-elem->str
+            [sub-elm]
+            (cond
+              (map? sub-elm)
+              (let [{:keys [start end step]} sub-elm
+                    start (if (keyword? start) nil start)
+                    end   (if (keyword? end) nil end)]
+                (str start ":" end ":" step))
+              (string? sub-elm)
+              (str "'" sub-elm "'")
+              :else
+              (str sub-elm)))
+          (elem->str
+            [elm]
+            (cond
+              (= '* elm) "[*]"
+              (= '.. elm) ".."
+              :else (str "[" (string/join "," (map sub-elem->str elm)) "]")))]
     (str "$" (string/join (map elem->str parsed-path)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

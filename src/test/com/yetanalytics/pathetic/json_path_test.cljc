@@ -1,15 +1,18 @@
 (ns com.yetanalytics.pathetic.json-path-test
   (:require [clojure.test :refer [deftest testing is are]]
-            [com.yetanalytics.pathetic.json-path :refer [path->string
-                                                         parse
-                                                         parse-first
-                                                         is-parse-failure?]]))
+            #_[clojure.spec.gen.alpha :as sgen]
+            [clojure.test.check]
+            [clojure.test.check.properties]
+            [clojure.spec.test.alpha :as stest]
+            [com.yetanalytics.pathetic.json-path
+             :refer [path->string parse parse-first is-parse-failure?]
+             :as json-path]))
 
 (deftest path->string-test
   (testing "Converting parsed paths back to strings"
-    (is (= "$[0,1,foo,0:5:1]..[*]" 
-         (path->string
-          [[0 1 "foo" {:start 0 :end 5 :step 1}] '.. '*])))))
+    (is (= "$[0,1,foo,0:5:1]..[*]"
+           (path->string
+            [[0 1 "foo" {:start 0 :end 5 :step 1}] '.. '*])))))
 
 (deftest parse-test-0
   (testing "Original JSONPath tests"
@@ -173,3 +176,14 @@
 
 ;; Note: path-seqs and speculative-path-seqs are tested indirectly in
 ;; pathetic-test
+
+(deftest gen-tests
+  (testing "Generative tests"
+    (stest/check `[json-path/is-parse-failure?
+                   json-path/test-strict-path
+                   json-path/path->string
+                   json-path/parse
+                   json-path/parse-first]
+                 {:clojure.spec.test.check/opts
+                  {:num-tests #?(:clj 100 :cljs 10)
+                   :seed (rand-int 2000000000)}})))
