@@ -12,3 +12,12 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+
+# VSCode
+.calva/
+.clj-kondo/
+.cljs_node_repl/
+.lsp/
+
+# ClojureScript
+cljs-test-runner-out/
