@@ -13,7 +13,7 @@
    the JSONPath location."
   [filter? path-seqs]
   (if filter?
-    (filterv (complement :fail) path-seqs)
+    (filter (complement :fail) path-seqs)
     path-seqs))
 
 (defn- int-maps->vectors [m]
@@ -23,7 +23,7 @@
         (mapv int-maps->vectors m)
         :else
         (let [ks (keys m)]
-          (if (every? int? ks)
+          (if (int? (first ks)) ;; Optimization: assume keys are homogenous
             ;; Turn int-to-val maps back into vectors
             (->> (sort ks)
                  (reduce (fn [acc k] (conj acc (get m k))) [])
@@ -157,8 +157,10 @@
   (let [enum-jsons   (fn [path] (->> (json-path/path-seqs json path)
                                      (filter-missing (not return-missing?))
                                      (mapv :json)))
-        remove-dupes (if return-duplicates? identity distinct)]
-    (->> paths (mapcat enum-jsons) remove-dupes vec)))
+        remove-dupes (if return-duplicates?
+                       identity
+                       (fn [coll] (-> coll distinct vec)))]
+    (->> paths (mapcat enum-jsons) remove-dupes)))
 
 (defn get-values
   "Given JSON data and a JSONPath string, return a vector of
@@ -192,8 +194,9 @@
             (->> path
                  (json-path/path-seqs json)
                  (filter-missing (not return-missing?))
-                 (reduce (fn [acc {jsn :json pth :path}] (assoc acc pth jsn))
-                         {})))]
+                 (reduce (fn [acc {jsn :json pth :path}] (assoc! acc pth jsn))
+                         (transient {}))
+                 persistent!))]
     (->> paths
          (map enum-json-kv)
          (reduce (fn [acc m] (merge acc m)) {}))))
@@ -262,7 +265,7 @@
                                 (remove-nth coll k)
                                 (dissoc coll k)))
         paths'   (->> paths
-                      (mapv (partial json-path/path-seqs json))
+                      (map (partial json-path/path-seqs json))
                       (apply concat)               ;; Flatten coll of path seqs
                       (filterv (complement :fail)) ;; Don't excise fail paths
                       (mapv :path)
@@ -302,9 +305,8 @@
    already-parsed JSONPaths."
   [json paths value]
   (let [paths' (->> paths
-                    (mapv (partial json-path/speculative-path-seqs json))
+                    (map (partial json-path/speculative-path-seqs json))
                     (apply concat)
-                    (filterv (complement :fail))
                     (mapv :path))]
     (reduce (fn [json path] (json/jassoc-in json path value))
             json
