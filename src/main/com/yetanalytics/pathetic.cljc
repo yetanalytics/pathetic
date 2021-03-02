@@ -79,37 +79,42 @@
   :ret (s/or :first ::json/path :all (s/every ::json/path)))
 
 (defn parse-path
-  "Parse a JSONPath string. Each parsed path is a vector with the
-   following entries:
+  "Given a JSONPath string `paths`, parse the string. Each parsed
+   path is a vector with the following entries:
      '..     recursive descent operator
      '*      wildcard operator
      [...]   a vector of strings (keys), integers (array indices), or
              maps (array slicing operations).
    
-   The following optional arguments are supported:
+   The following `opts-map` fields are supported:
      :first?   Return the first path when multiple paths are joined
                using the \"|\" operator. Default false (in which case
                a vector of paths is returned).
      :strict?  If true, disallows recursive descent, array slicing,
                and negative indices. Conformant to the xAPI Profile
                spec and used by apply-values. Default false."
-  [paths & {:keys [first? strict?]
-            :or {first? false strict? false}}]
-  (let [res (if first?
-              (json-path/parse-first paths)
-              (json-path/parse paths))]
-    (if (json-path/is-parse-failure? res)
-      (throw (ex-info "Cannot parse JSONPath string"
-                      (assoc res :type ::invalid-path)))
-      (do (when strict?
-            (when-let [strict-elem (if first?
-                                     (json-path/test-strict-path res)
-                                     (some json-path/test-strict-path res))]
-              (throw (ex-info "Illegal path element in strict mode"
-                              {:type    ::invalid-strict-path
-                               :paths   res
-                               :element strict-elem}))))
-          res))))
+  ([paths]
+   (parse-path paths {}))
+  ([paths opts-map]
+   (let [{:keys [first? strict?]
+          :or   {first? false strict? false}}
+         opts-map
+         res
+         (if first?
+           (json-path/parse-first paths)
+           (json-path/parse paths))]
+     (if (json-path/is-parse-failure? res)
+       (throw (ex-info "Cannot parse JSONPath string"
+                       (assoc res :type ::invalid-path)))
+       (do (when strict?
+             (when-let [strict-elem (if first?
+                                      (json-path/test-strict-path res)
+                                      (some json-path/test-strict-path res))]
+               (throw (ex-info "Illegal path element in strict mode"
+                               {:type    ::invalid-strict-path
+                                :paths   res
+                                :element strict-elem}))))
+           res)))))
 
 ;; Originally "enumerate"
 
@@ -120,27 +125,33 @@
 (defn get-paths*
   "Like `get-paths` except that the `paths` argument is a vector
    of already-parsed JSONPaths."
-  [json paths & {:keys [return-missing?] :or {return-missing? false}}]
-  (letfn [(enum-paths [path] (->> (json-path/path-seqs json path)
-                                  (filter-missing (not return-missing?))
-                                  (mapv :path)))]
-    (->> paths (mapcat enum-paths) distinct vec)))
+  ([json paths]
+   (get-paths* json paths {}))
+  ([json paths opts-map]
+   (let [{:keys [return-missing?] :or {return-missing? false}}
+         opts-map
+         enum-paths
+         (fn [path]
+           (->> (json-path/path-seqs json path)
+                (filter-missing (not return-missing?))
+                (mapv :path)))]
+     (->> paths (mapcat enum-paths) distinct vec))))
 
 (defn get-paths
-  "Given JSON data and a JSONPath string, return a vector of
+  "Given `json` and a JSONPath string `paths`, return a vector of
    definite key paths. Each key path is a vector of strings (keys)
    or integers (array indices); non-deterministic path entries like
    recursive descent and wildcards are removed. If the string
    contains multiple JSONPaths, we return the key paths for all
    strings.
    
-   The following optional arguments are supported:
+   The following `opts-map` fields are supported:
      :return-missing?  Return paths that cannot match any location
                        in the JSON data as nil. Default false."
-  [json paths & {:keys [return-missing?] :or {return-missing? false}}]
-  (get-paths* json
-              (parse-path paths)
-              :return-missing? return-missing?))
+  ([json paths]
+   (get-paths* json (parse-path paths)))
+  ([json paths opts-map]
+   (get-paths* json (parse-path paths) opts-map)))
 
 ;; Originally "get-at"
 
@@ -151,34 +162,35 @@
 (defn get-values*
   "Like `get-values` except that the `paths` argument is a vector
    of already-parsed JSONPaths."
-  [json paths & {:keys [return-missing? return-duplicates?]
-                 :or   {return-missing?    false
-                        return-duplicates? true}}]
-  (let [enum-jsons   (fn [path] (->> (json-path/path-seqs json path)
-                                     (filter-missing (not return-missing?))
-                                     (mapv :json)))
-        remove-dupes (if return-duplicates?
-                       identity
-                       (fn [coll] (-> coll distinct vec)))]
-    (->> paths (mapcat enum-jsons) remove-dupes)))
+  ([json paths]
+   (get-values* json paths {}))
+  ([json paths opts-map]
+   (let [{:keys [return-missing? return-duplicates?]
+          :or   {return-missing? false return-duplicates? true}}
+         opts-map
+         enum-jsons
+         (fn [path]
+           (->> (json-path/path-seqs json path)
+                (filter-missing (not return-missing?))
+                (mapv :json)))
+         remove-dupes
+         (if return-duplicates? identity distinct)]
+     (->> paths (mapcat enum-jsons) remove-dupes vec))))
 
 (defn get-values
-  "Given JSON data and a JSONPath string, return a vector of
+  "Given `json` and a JSONPath string `paths`, return a vector of
    JSON values. If the string contains multiple JSONPaths, we return
    the union of all these values.
    
-   The following optional arguments are supported:
+   The following `opts-map` fields are supported:
      :return-missing?     Return values that cannot be found in the JSON
                           data as nil. Default false.
      :return-duplicates?  Return duplicate values in the array. Default
                           true."
-  [json paths & {:keys [return-missing? return-duplicates?]
-                 :or   {return-missing?    false
-                        return-duplicates? true}}]
-  (get-values* json
-               (parse-path paths)
-               :return-missing? return-missing?
-               :return-duplicates? return-duplicates?))
+  ([json paths]
+   (get-values* json (parse-path paths)))
+  ([json paths opts-map]
+   (get-values* json (parse-path paths) opts-map)))
 
 ;; Formerly "path->data"
 
@@ -189,30 +201,35 @@
 (defn get-path-value-map*
   "Like `get-path-value-map` except that the `paths` argument is a
    vector of already-parsed JSONPaths."
-  [json paths & {:keys [return-missing?] :or {return-missing? false}}]
-  (letfn [(enum-json-kv [path]
-            (->> path
-                 (json-path/path-seqs json)
-                 (filter-missing (not return-missing?))
-                 (reduce (fn [acc {jsn :json pth :path}] (assoc! acc pth jsn))
-                         (transient {}))
-                 persistent!))]
-    (->> paths
-         (map enum-json-kv)
-         (reduce (fn [acc m] (merge acc m)) {}))))
+  ([json paths]
+   (get-path-value-map* json paths {}))
+  ([json paths opts-map]
+   (let [{:keys [return-missing?] :or {return-missing? false}}
+         opts-map
+         enum-json-kv
+         (fn [path]
+           (->> path
+                (json-path/path-seqs json)
+                (filter-missing (not return-missing?))
+                (reduce (fn [acc {jsn :json pth :path}] (assoc! acc pth jsn))
+                        (transient {}))
+                persistent!))]
+     (->> paths
+          (map enum-json-kv)
+          (reduce (fn [acc m] (merge acc m)) {})))))
 
 (defn get-path-value-map
-  "Given JSON data nd a JSONPath string, return a map associating
+  "Given `json` nd a JSONPath string `paths`, return a map associating
    JSON paths to JSON values. Does not return duplicates.
    
-   The following optional arguments are supported:
+   The following `opts-map` fields are supported:
      :return-missing?  Return path-value pairs where the path cannot
                        match any location in the JSON data. The object
                        is returned as nil. Default false."
-  [json paths & {:keys [return-missing?] :or {return-missing? false}}]
-  (get-path-value-map* json
-                       (parse-path paths)
-                       :return-missing? return-missing?))
+  ([json paths]
+   (get-path-value-map* json (parse-path paths)))
+  ([json paths opts-map]
+   (get-path-value-map* json (parse-path paths) opts-map)))
 
 ;; select-keys-at
 
@@ -223,7 +240,7 @@
 (defn select-keys-at*
   "Like `select-keys-at` except that the `paths` argument is a vector
    of already-parsed JSONPaths. Unlike `select-keys-at`, there is no
-   :first? option, so singleton parsed paths are invalid arguments."
+  `opts-map` arg, and singleton parsed paths are invalid arguments."
   [json paths]
   (letfn [(enum-maps
             [path]
@@ -236,19 +253,23 @@
     (->> paths (map enum-maps) (map int-maps->vectors) vec)))
 
 (defn select-keys-at
-  "Given JSON data and a JSONPath string, return a vector of maps
+  "Given `json` and a JSONPath string `paths`, return a vector of maps
    that represent the key path into the JSON value. If the string
    contains multiple JSONPaths, we return the maps for all strings.
    If no value exists at the selection, return a truncated map with
    \"{}\" as the innermost possible value.
    
-   The following optional arguments are supported:
+   The following `opts-map` fields are supported:
      :first?  Returns the maps corresponding to the first path (if
               paths are separated by \"|\"). Default false."
-  [json paths & {:keys [first?] :or {first? false}}]
-  (if first?
-    (first (select-keys-at* json [(parse-path paths :first? true)]))
-    (select-keys-at* json (parse-path paths))))
+  ([json paths]
+   (select-keys-at json paths {}))
+  ([json paths opts-map]
+   (let [{:keys [first?] :or {first? false}} opts-map]
+     (if first?
+       ;; TODO: optimize
+       (first (select-keys-at* json [(parse-path paths {:first? true})]))
+       (select-keys-at* json (parse-path paths))))))
 
 ;; excise
 
@@ -259,40 +280,47 @@
 (defn excise*
   "Like `excise` except that the `paths` argument is a vector of
    already-parsed JSONPaths."
-  [json paths & {:keys [prune-empty?] :or {prune-empty? false}}]
-  (let [prune-fn (if prune-empty? prune identity)
-        rm-fn    (fn [coll k] (if (int? k)
-                                (remove-nth coll k)
-                                (dissoc coll k)))
-        paths'   (->> paths
-                      (map (partial json-path/path-seqs json))
-                      (apply concat)               ;; Flatten coll of path seqs
-                      (filterv (complement :fail)) ;; Don't excise fail paths
-                      (mapv :path)
-                      (sort cmp-vecs) ;; Sort/reverse so higher-index vector
-                      reverse)]       ;; entries are removed before low-index ones
-    (prune-fn
-     (reduce (fn [json path]
-               (let [last-key (last path)
-                     rem-keys (butlast path)]
-                 (if (empty? rem-keys)
-                   (rm-fn json last-key) ;; update-in fails on empty key-paths
-                   (update-in json rem-keys rm-fn last-key))))
-             json
-             paths'))))
+  ([json paths]
+   (excise* json paths {}))
+  ([json paths opts-map]
+   (let [{:keys [prune-empty?] :or {prune-empty? false}}
+         opts-map
+         prune-fn
+         (if prune-empty? prune identity)
+         rm-fn
+         (fn [coll k] (if (int? k)
+                        (remove-nth coll k)
+                        (dissoc coll k)))
+         paths'
+         (->> paths
+              (map (partial json-path/path-seqs json))
+              (apply concat)               ;; Flatten coll of path seqs
+              (filterv (complement :fail)) ;; Don't excise fail paths
+              (mapv :path)
+              (sort cmp-vecs) ;; Sort/reverse so higher-index vector
+              reverse)]       ;; entries are removed before low-index ones
+     (prune-fn
+      (reduce (fn [json path]
+                (let [last-key (last path)
+                      rem-keys (butlast path)]
+                  (if (empty? rem-keys)
+                    (rm-fn json last-key) ;; update-in fails on empty key-paths
+                    (update-in json rem-keys rm-fn last-key))))
+              json
+              paths')))))
 
 (defn excise
-  "Given JSON data and a JSONPath string, return the JSON value with
+  "Given `json` and a JSONPath string `paths`, return the JSON value with
    the elements at the location removed.
    
-   The following optional arguments are supported:
+   The following `opts-map` fields are supported:
      :prune-empty?  Removes empty maps and vectors, as well as
                     key-value pairs where values are empty, after the
                     elements are excised. Default false."
-  [json paths & {:keys [prune-empty?] :or {prune-empty? false}}]
-  (excise* json
-           (parse-path paths)
-           :prune-empty? prune-empty?))
+  ([json paths]
+   (excise* json (parse-path paths)))
+  ([json paths opts-map]
+   (excise* json (parse-path paths) opts-map)))
 
 ;; Changed from "apply-values" to only accept one value
 
@@ -313,10 +341,10 @@
             paths')))
 
 (defn apply-value
-  "Given JSON data, a JSONPath string, and a JSON value, apply the
-   value to the location given by the path. If the location exists,
-   update the pre-existing value. Otherwise, create the necessary
-   data structures needed to contain the JSON value.
+  "Given `json`, a JSONPath string `paths`, and the JSON data
+   `value`, apply `value` to the location given by `paths` If
+   the location exists, update the pre-existing value. Otherwise,
+   create the necessary data structures needed to contain `value`.
 
    The following caveats apply:
    - If an array index skips over any vector entries, those skipped
@@ -327,8 +355,10 @@
      append it to the coll. In the case of maps, the key is its
      current size, e.g. {\"2\" : \"foo\"}.
    - Recursive descent, array slicing, and negative array indices
-     are disallowed (as per strict mode)."
+     are disallowed (as per strict mode).
+   
+   `apply-value` does not take an options map as an argument."
   [json paths value]
   (apply-value* json
-                (parse-path paths :strict? true)
+                (parse-path paths {:strict? true})
                 value))

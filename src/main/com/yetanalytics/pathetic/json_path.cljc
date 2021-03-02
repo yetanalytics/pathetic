@@ -350,8 +350,8 @@
                          step  (if (zero? step) 1 step) ;; no infinite loops
                          nvals (range start end step)]
                      (reduce (fn [acc v] (conj! acc v)) acc nvals))
-                  ;; JSON data is not a vector, return a dummy index such that
-                  ;; (get json 0) => nil
+                   ;; JSON data is not a vector, return a dummy index such that
+                   ;; (get json 0) => nil
                    (conj! acc 0))
                  (neg-int? elem)
                  (conj! acc (+ (count json) elem))

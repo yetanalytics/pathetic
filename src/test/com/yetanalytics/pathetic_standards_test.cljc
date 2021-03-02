@@ -45,13 +45,13 @@
     (is (= []
            (get-values [0 1] "$.key")))
     (is (= [nil]
-           (get-values [0 1] "$.key" :return-missing? true)))
+           (get-values [0 1] "$.key" {:return-missing? true})))
     (is (= [["first" "second"]]
            (get-values {"key" ["first" "second"]} "$.key")))
     (is (= []
            (get-values [{"id" 2}] "$.key")))
     (is (= [nil]
-           (get-values [{"id" 2}] "$.key" :return-missing? true)))
+           (get-values [{"id" 2}] "$.key" {:return-missing? true})))
     (is (= [{}]
            (get-values {"key" {}} "$.key")))
     (is (= [nil]
@@ -59,7 +59,7 @@
     (is (= []
            (get-values {"key" "value"} "$.missing")))
     (is (= [nil]
-           (get-values {"key" "value"} "$.missing" :return-missing? true)))
+           (get-values {"key" "value"} "$.missing" {:return-missing? true})))
     (is (= [42 200 500] ;; Original order: [200 42 500]
            (get-values {"k"   [{"key" "some value"}, {"key" 42}]
                         "kk"  [[{"key" 100} {"key" 200} {"key" 300}]
@@ -69,13 +69,13 @@
     (is (= [1 1]
            (get-values [{"a" 1} {"a" 1}] "$[*].a")))
     (is (= [1]
-           (get-values [{"a" 1} {"a" 1}] "$[*].a" :return-duplicates? false)))
+           (get-values [{"a" 1} {"a" 1}] "$[*].a" {:return-duplicates? false})))
     (is (= [1]
            (get-values [{"a" 1}] "$[*].a")))
     (is (= [1]
            (get-values [{"a" 1} {"b" 1}] "$[*].a")))
     (is (= [nil 1] ;; Supposed to be [1 nil], but reversed due to using BFS instead of DFS
-           (get-values [{"a" 1} {"b" 1}] "$[*].a" :return-missing? true)))
+           (get-values [{"a" 1} {"b" 1}] "$[*].a" {:return-missing? true})))
     ;; Original order: ["russian dolls" "something" "top" "value" {"key" "russian dolls"}]
     (is (= ["top" "value" "something" {"key" "russian dolls"} "russian dolls"]
            (get-values {"object" {"key"   "value"
@@ -87,7 +87,7 @@
     (is (= [8.95 12.99 8.99 22.99 19.95]
            (get-values store-example "$.store..price")))
     (is (= [8.95 12.99 8.99 22.99 19.95] ;; Recursive descent doesn't include missing leaves
-           (get-values store-example "$.store..price" :return-missing? true)))
+           (get-values store-example "$.store..price" {:return-missing? true})))
     (is (= ["ey" "see"]
            (get-values [{"key" "ey"} {"key" "bee"} {"key" "see"}] "$[0,2].key")))
     (is (= ["value"]
@@ -173,7 +173,7 @@
     (is (= []
            (get-values {"key" "value"} "$['missing']")))
     (is (= [nil]
-           (get-values {"key" "value"} "$['missing']" :return-missing? true)))
+           (get-values {"key" "value"} "$['missing']" {:return-missing? true})))
     ;; Original order: ["deepest" "first nested" "first" "more" {"nested" ["deepest" "second"]}]
     (is (= ["first" "first nested" {"nested" ["deepest" "second"]} "deepest" "more"]
            (get-values ["first" {"key" ["first nested"
@@ -183,7 +183,7 @@
     (is (= []
            (get-values {"ü" 42} "$['ü']")))
     (is (= [nil]
-           (get-values {"ü" 42} "$['ü']" :return-missing? true)))
+           (get-values {"ü" 42} "$['ü']" {:return-missing? true})))
     (is (= ["42"]
            (get-values {"one"      {"key" "value"}
                         "two"      {"some" "more"
@@ -208,25 +208,25 @@
     (is (= []
            (get-values ["one element"] "$[-2]")))
     (is (= [nil]
-           (get-values ["one element"] "$[-2]" :return-missing? true)))
+           (get-values ["one element"] "$[-2]" {:return-missing? true})))
     (is (= ["third"]
            (get-values ["first" "second" "third" "fourth" "fifth"] "$[2]")))
     (is (= []
            (get-values {"0" "value"} "$[0]")))
     (is (= [nil]
-           (get-values {"0" "value"} "$[0]" :return-missing? true)))
+           (get-values {"0" "value"} "$[0]" {:return-missing? true})))
     (is (= []
            (get-values ["one element"] "$[1]")))
     (is (= [nil]
-           (get-values ["one element"] "$[1]" :return-missing? true)))
+           (get-values ["one element"] "$[1]" {:return-missing? true})))
     (is (= []
            (get-values "Hello World" "$[0]")))
     (is (= [nil]
-           (get-values "Hello World" "$[0]" :return-missing? true)))
+           (get-values "Hello World" "$[0]" {:return-missing? true})))
     (is (= [3]
            (get-values [[1] [2 3]] "$.*[1]")))
     (is (= [nil 3]
-           (get-values [[1] [2 3]] "$.*[1]" :return-missing? true)))
+           (get-values [[1] [2 3]] "$.*[1]" {:return-missing? true})))
     (is (= ["third"]
            (get-values ["first" "second" "third"] "$[-1]")))
     (is (= ["first"]
@@ -357,11 +357,11 @@
     (is (= ["a" "a"]
            (get-values ["a"] "$[0,0]")))
     (is (= ["a"]
-           (get-values ["a"] "$[0,0]" :return-duplicates? false)))
+           (get-values ["a"] "$[0,0]" {:return-duplicates? false})))
     (is (= [1 1] ;; no consensus, but this is what most implementations return
            (get-values {"a" 1} "$['a','a']")))
     (is (= [1]
-           (get-values {"a" 1} "$['a','a']" :return-duplicates? false)))
+           (get-values {"a" 1} "$['a','a']" {:return-duplicates? false})))
     (is (= ["value" "entry"]
            (get-values {"key" "value" "another" "entry"} "$['key','another']")))
     (is (= ["value"]
@@ -369,7 +369,7 @@
     (is (= [nil "value"]
            (get-values {"key" "value" "another" "entry"}
                        "$['missing','key']"
-                       :return-missing? true)))
+                       {:return-missing? true})))
     (is (= ["cc1" "dd1" "cc2" "dd2"]
            (get-values [{"c" "cc1" "d" "dd1" "e" "ee1"}
                         {"c" "cc2" "d" "dd2" "e" "ee2"}]
@@ -419,7 +419,7 @@
     (is (= []
            (get-values ["first" "second" "third"] "$[7:10]")))
     (is (= []
-           (get-values ["first" "second" "third"] "$[7:10]" :return-missing? true)))
+           (get-values ["first" "second" "third"] "$[7:10]" {:return-missing? true})))
     (is (= []
            (get-values {":"    42
                         "more" "string"
@@ -436,11 +436,11 @@
                         "c"    3
                         "1:3"  "nice"}
                        "$[1:3]"
-                       :return-missing? true)))
+                       {:return-missing? true})))
     (is (= ["second" "third"]
            (get-values ["first" "second" "third"] "$[1:10]")))
     (is (= ["second" "third"] ;; Slicing excludes out-of-bounds values
-           (get-values ["first" "second" "third"] "$[1:10]" :return-missing? true)))
+           (get-values ["first" "second" "third"] "$[1:10]" {:return-missing? true})))
     ;; Array slice on large numbers
     (is (= ["third" "fourth" "fifth"]
            (get-values ["first" "second" "third" "fourth" "fifth"]

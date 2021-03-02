@@ -48,21 +48,21 @@
     (is (= [[["store"]] [["book"] [0 1]]]
            (parse-path "$['store']|$.book[0,1]")))
     (is (= [["store"]]
-           (parse-path "$['store']|$.book[0,1]" :first? true)))
+           (parse-path "$['store']|$.book[0,1]" {:first? true})))
     (is (parse-failed? (parse-path "$foobar")))
-    (is (strict-parse-failed? (parse-path "$..*" :strict? true)))
-    (is (strict-parse-failed? (parse-path "$['store'][-1]" :strict? true)))
-    (is (strict-parse-failed? (parse-path "$['store'][0:5:1]" :strict? true)))
+    (is (strict-parse-failed? (parse-path "$..*" {:strict? true})))
+    (is (strict-parse-failed? (parse-path "$['store'][-1]" {:strict? true})))
+    (is (strict-parse-failed? (parse-path "$['store'][0:5:1]" {:strict? true})))
     (is (strict-parse-failed? (parse-path "$['store'][0:5:1]"
-                                          :first? true
-                                          :strict? true)))))
+                                          {:first?  true
+                                           :strict? true})))))
 
 (deftest get-paths-test
   (testing "Enumerate deterministic JSONPaths"
     (is (= []
            (get-paths nil "$.foo")))
     (is (= [[]]
-           (get-paths nil "$.foo" :return-missing? true)))
+           (get-paths nil "$.foo" {:return-missing? true})))
     (is (= [["universe" 0 "foo" "bar"]]
            (get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                       "$.universe.*.foo.bar")))
@@ -70,7 +70,7 @@
             ["universe" 0 "foo" "bar"]]
            (get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                       "$.universe.*.foo.bar"
-                      :return-missing? true)))
+                      {:return-missing? true})))
     (is (= [["store" "book" 0 "author"]
             ["store" "book" 1 "author"]
             ["store" "book" 2 "author"]
@@ -80,10 +80,10 @@
             ["store" "book" 1 "isbn"]
             ["store" "book" 2 "isbn"]
             ["store" "book" 3 "isbn"]]
-           (get-paths goessner-ex "$.store.book[*].isbn" :return-missing? true)))
+           (get-paths goessner-ex "$.store.book[*].isbn" {:return-missing? true})))
     (is (= [["store" "book" 2 "isbn"]
             ["store" "book" 3 "isbn"]]
-           (get-paths goessner-ex "$.store.book[*].isbn" :return-missing? false)))
+           (get-paths goessner-ex "$.store.book[*].isbn" {:return-missing? false})))
     (is (= [["store" "bicycle" "color"]
             ["store" "bicycle" "price"]]
            (get-paths goessner-ex "$.store.bicycle..*")))
@@ -93,11 +93,11 @@
     (is (= [["context" "contextActivities" "grouping"]]
            (get-paths long-statement
                       "$.context.contextActivities.grouping[*]"
-                      :return-missing? true)))
+                      {:return-missing? true})))
     (is (= [["context" "contextActivities" "grouping"]]
            (get-paths long-statement
                       "$.context.contextActivities.grouping[0]"
-                      :return-missing? true)))
+                      {:return-missing? true})))
     (is (= [["context" "contextActivities" "category" 0 "id"]]
            (get-paths long-statement
                       "$.context.contextActivities.category[*].id")))))
@@ -105,7 +105,7 @@
 (deftest get-values-test-1
   (testing "Testing JSONPath on example provided by Goessner"
     (are [expected path]
-         (= expected (get-values goessner-ex path :return-missing? true))
+         (= expected (get-values goessner-ex path {:return-missing? true}))
       ; The authors of all books in the store
       ["Nigel Rees" "Evelyn Waugh" "Herman Melville" "J.R.R. Tolkien"]
       "$.store.book[*].author"
@@ -229,7 +229,7 @@
   (testing "Testing JSONPath on example Statement"
     ;; Hits
     (are [expected path]
-         (= expected (get-values long-statement path :return-missing? true))
+         (= expected (get-values long-statement path {:return-missing? true}))
       ["6690e6c9-3ef0-4ed3-8b37-7f3964730bee"]
       "$.id"
       ["2013-05-18T05:32:34.804Z"]
@@ -248,7 +248,7 @@
       "$.context.contextActivities.category[*].id")
     ;; Misses
     (are [path]
-         (= [nil] (get-values long-statement path :return-missing? true))
+         (= [nil] (get-values long-statement path {:return-missing? true}))
       "$.context.contextActivities.grouping[*]"
       "$.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid']"
       "$.result.score"
@@ -263,7 +263,7 @@
     (is (= {}
            (get-path-value-map nil "$.foo")))
     (is (= {[] nil}
-           (get-path-value-map nil "$.foo" :return-missing? true)))
+           (get-path-value-map nil "$.foo" {:return-missing? true})))
     (is (= {["foo"] nil}
            (get-path-value-map {"foo" nil} "$.foo")))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"}
@@ -278,7 +278,7 @@
     (is (= {["store" "book" 4] nil}
            (get-path-value-map goessner-ex
                                "$.store.book[4].author"
-                               :return-missing? true)))
+                               {:return-missing? true})))
     (is (= {["context" "contextActivities" "category" 0 "id"]
             "http://www.example.com/meetings/categories/teammeeting"}
            (get-path-value-map long-statement
@@ -286,8 +286,8 @@
 
 (deftest select-keys-at-test
   (testing "Selecting keys with a JSONPath."
-    (is (= {nil {}} (select-keys-at nil "$.foo" :first? true)))
-    (is (= {nil {}} (select-keys-at {} "$.foo" :first? true)))
+    (is (= {nil {}} (select-keys-at nil "$.foo" {:first? true})))
+    (is (= {nil {}} (select-keys-at {} "$.foo" {:first? true})))
     (are [expected path]
          (= expected (select-keys-at goessner-ex path))
       [{"store" {"book" [{"author" "Nigel Rees"}
@@ -304,7 +304,7 @@
       [goessner-ex]
       "$..*")
     (are [expected path]
-         (= expected (select-keys-at long-statement path :first? true))
+         (= expected (select-keys-at long-statement path {:first? true}))
       {"id" "6690e6c9-3ef0-4ed3-8b37-7f3964730bee"}
       "$.id"
       {"timestamp" "2013-05-18T05:32:34.804Z"}
@@ -354,25 +354,25 @@
     (is (= {}
            (excise {"universe" [{"foo" :a} {"foo" :b}]}
                    "$.universe.*.foo"
-                   :prune-empty? true)))
+                   {:prune-empty? true})))
     (is (= {"universe" [{"bar" :b}]}
            (excise {"universe" [{"foo" :a} {"bar" :b}]}
                    "$.universe.*.foo"
-                   :prune-empty? true)))
+                   {:prune-empty? true})))
     (is (= {"universe" [{"foo" {}} {}]}
            (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]}
                    "$.universe..bar")))
     (is (= {}
            (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]}
                    "$.universe..bar"
-                   :prune-empty? true)))
+                   {:prune-empty? true})))
     (is (= {"universe" [{"foo" {}} {"baz" :c}]}
            (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b "baz" :c}]}
                    "$.universe..bar")))
     (is (= {"universe" [{"baz" :c}]}
            (excise {"universe" [{"foo" {"bar" :a}} {"bar" :b "baz" :c}]}
                    "$.universe..bar"
-                   :prune-empty? true)))
+                   {:prune-empty? true})))
     (is (= {"store" {"book"    [{"author" "Nigel Rees"}
                                 {"author" "Evelyn Waugh"}
                                 {"author" "Herman Melville"}
