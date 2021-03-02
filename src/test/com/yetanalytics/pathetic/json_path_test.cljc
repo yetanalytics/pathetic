@@ -10,7 +10,7 @@
 
 (deftest path->string-test
   (testing "Converting parsed paths back to strings"
-    (is (= "$[0,1,foo,0:5:1]..[*]"
+    (is (= "$[0,1,'foo',0:5:1]..[*]"
            (path->string
             [[0 1 "foo" {:start 0 :end 5 :step 1}] '.. '*])))))
 

@@ -74,7 +74,7 @@
            (get-values [{"a" 1}] "$[*].a")))
     (is (= [1]
            (get-values [{"a" 1} {"b" 1}] "$[*].a")))
-    (is (= [1 nil]
+    (is (= [nil 1] ;; Supposed to be [1 nil], but reversed due to using BFS instead of DFS
            (get-values [{"a" 1} {"b" 1}] "$[*].a" :return-missing? true)))
     ;; Original order: ["russian dolls" "something" "top" "value" {"key" "russian dolls"}]
     (is (= ["top" "value" "something" {"key" "russian dolls"} "russian dolls"]

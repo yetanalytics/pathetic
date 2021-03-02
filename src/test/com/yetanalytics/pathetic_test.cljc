@@ -59,8 +59,10 @@
 
 (deftest get-paths-test
   (testing "Enumerate deterministic JSONPaths"
-    (is (= [[]]
+    (is (= []
            (get-paths nil "$.foo")))
+    (is (= [[]]
+           (get-paths nil "$.foo" :return-missing? true)))
     (is (= [["universe" 0 "foo" "bar"]]
            (get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                       "$.universe.*.foo.bar")))
@@ -258,8 +260,12 @@
 
 (deftest get-path-value-map-test
   (testing "Testing getting JSONPath-to-JSON maps"
-    (is (= {[] nil}
+    (is (= {}
            (get-path-value-map nil "$.foo")))
+    (is (= {[] nil}
+           (get-path-value-map nil "$.foo" :return-missing? true)))
+    (is (= {["foo"] nil}
+           (get-path-value-map {"foo" nil} "$.foo")))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"}
            (get-path-value-map goessner-ex "$.store.book[0].author")))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"

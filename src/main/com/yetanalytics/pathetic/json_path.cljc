@@ -11,9 +11,36 @@
 ;; Specs
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Indefinite paths
+;; ===== AST (post-parse) =====
+;; jsonpaths      := jsonpath+
+;; jsonpath       := element*
+;; element        := recursive? keyset | recursive? wildcard
+;; keyset         := [int-literal | string-literal | array-slice ...]
+;; 
+;; array-slice    := {:start int-literal | :vec-lower | :vec-higher
+;;                    :end   int-literal | :vec-lower | :vec-higher
+;;                    :step  int-literal}
+;; int-literal    := [<integer literal>]
+;; string-literal := [<string literal>]
+;; wildcard       := '*
+;; recursive      := '..
 
-(s/def ::root #{'$})
+(defn valid-recursive-descent?
+  "Returns false if the path vector does not have a '.. symbol followed
+   by no children or another '.., true otherwise."
+  [path]
+  (loop [path path]
+    (if-let [elem (first path)]
+      (if (= '.. elem)
+        (if-let [elem' (second path)]
+          (if (not= '.. elem')
+            (recur (rest (rest path)))
+            false)
+          false)
+        (recur (rest path)))
+      true)))
+
+;; Indefinite paths
 
 (s/def ::wildcard #{'*})
 (s/def ::recursive #{'..})
@@ -37,9 +64,10 @@
         :recursive ::recursive))
 
 (s/def ::json-path
-  (s/every ::element
-           :type vector?
-           :min-count 1))
+  (s/and (s/every ::element
+                  :type vector?
+                  :min-count 1)
+         valid-recursive-descent?))
 
 (s/def ::json-paths
   (s/every ::json-path
@@ -118,21 +146,6 @@
     ws         := #'\\s*'
   "))
 
-;; ===== AST (post-parse) =====
-;; jsonpaths      := jsonpath+
-;; jsonpath       := child*
-;; child          := identifier | int-literal | string-literal
-;;                   | bracket-union | double-dot | wildcard
-;; bracket-union  := [int-literal | string-literal | array-slice ...]
-;; array-slice    := {:start int-literal | :vec-lower | :vec-higher
-;;                    :end   int-literal | :vec-lower | :vec-higher
-;;                    :step  int-literal}
-;; identifier     := [<string literal>]
-;; int-literal    := [<integer literal>]
-;; string-literal := [<string literal>]
-;; wildcard       := '*
-;; double-dot     := '..
-
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (defn- slice-list->slice-map [slice-list]
   ;; "start", "end", and "step" are singleton vectors as a result of w/postwalk
@@ -165,7 +178,7 @@
     [[[start] ":" [end] ":" [step]]]
     {:start start :end end :step step}
     :else
-    (throw (ex-info "cannot process array slice"
+    (throw (ex-info "Cannot process array slice"
                     {:type ::invalid-array-slice
                      :array-slice slice-list}))))
 
@@ -371,75 +384,93 @@
   ;;   :rest  the remaining JSONPath that could not be traversed
   ;;   :desc  if traversal was the direct result of the .. operator
   (loop [worklist (init-queue {:json json-obj
-                               :rest (seq json-path)
+                               :rest json-path
                                :path []
                                :fail false
-                               :desc false})]
-    (if-not (every? (fn [{jsn :json rst :rest}] (or (nil? jsn) (empty? rst)))
-                    worklist)
-      (let [{jsn :json rst :rest pth :path dsc :desc :as workitem}
-            (peek worklist)]
-        (if-let [element (first rst)]
-          (cond
-            ;; Short circuit: if json is a primitive or nil stop traversal
-            (not (coll? jsn))
-            (if dsc
-              ;; Scalar is the result of recursive descent, ignore
-              (recur (pop worklist))
-              ;; Scalar is more-or-less intentional, mark failure
-              (let [worklist' (conj (pop worklist)
-                                    {:json nil
-                                     :rest rst
-                                     :path pth
-                                     :fail true
-                                     :desc false})]
-                (recur worklist')))
-            ;; Recursive descent
-            (= '.. element)
-            (let [desc-list (json/recursive-descent jsn)
-                  worklist' (reduce
-                             (fn [acc desc]
-                               (conj acc
-                                     {:json (:json desc)
-                                      :rest (rest rst)
-                                      :path (vec (concat pth (:path desc)))
-                                      :fail false
-                                      :desc true}))
-                             (pop worklist)
-                             desc-list)]
-              (recur worklist'))
-            ;; Wildcard
-            (= '* element)
-            (let [worklist' (reduce-kv
-                             (fn [acc key child]
-                               (conj acc
-                                     {:json child
-                                      :rest (rest rst)
-                                      :path (conj pth key)
-                                      :fail false
-                                      :desc false}))
-                             (pop worklist)
-                             jsn)]
-              (recur worklist'))
-            ;; Vector of keys/indices/slices
-            (vector? element)
-            (let [element'  (normalize-indices element jsn)
-                  worklist' (reduce
-                             (fn [acc sub-elm]
-                               (if (and dsc (not (contains? jsn sub-elm)))
-                                 acc ;; Recursive desc: don't add missing keys
-                                 (conj acc
-                                       {:json (get jsn sub-elm)
-                                        :rest (rest rst)
-                                        :path (conj pth sub-elm)
-                                        :fail (not (contains? jsn sub-elm))
-                                        :desc false})))
-                             (pop worklist)
-                             element')]
-              (recur worklist')))
-          ;; Path is exhausted; cycle work item to back of worklist
-          (recur (conj (pop worklist) workitem))))
-      (map #(dissoc % :rest :desc) worklist))))
+                               :desc false})
+         reslist  (transient [])]
+    (if-let [{jsn :json rst :rest pth :path dsc :desc :as workitem}
+             (peek worklist)]
+      (if-let [element (first rst)]
+        (cond
+          ;; Short circuit: if json is a primitive or nil stop traversal
+          (not (coll? jsn))
+          (if dsc
+            ;; Scalar is the result of recursive descent, ignore
+            (recur (pop worklist) reslist)
+            ;; Scalar is more-or-less intentional, mark failure
+            (let [worklist' (pop worklist)
+                  reslist'  (conj! reslist
+                                   {:json nil
+                                    :rest rst
+                                    :path pth
+                                    :fail true
+                                    :desc false})]
+              (recur worklist' reslist')))
+          ;; Recursive descent
+          (= '.. element)
+          (let [desc-list (json/recursive-descent jsn)
+                worklist' (reduce
+                           (fn [acc desc]
+                             (conj acc
+                                   {:json (:json desc)
+                                    :rest (rest rst)
+                                    :path (vec (concat pth (:path desc)))
+                                    :fail false
+                                    :desc true}))
+                           (pop worklist)
+                           desc-list)]
+            (recur worklist' reslist))
+          ;; Wildcard
+          (= '* element)
+          (let [worklist' (reduce-kv
+                           (fn [acc key child]
+                             (conj acc
+                                   {:json child
+                                    :rest (rest rst)
+                                    :path (conj pth key)
+                                    :fail false
+                                    :desc false}))
+                           (pop worklist)
+                           jsn)]
+            (recur worklist' reslist))
+          ;; Vector of keys/indices/slices
+          (vector? element)
+          (let [element'
+                (normalize-indices element jsn)
+                [worklist' reslist']
+                (reduce
+                 (fn [[worklist reslist] sub-elm]
+                   ;; Need to separate `contains?` from `get` to distinguish
+                   ;; nil values from non-existent ones in the coll.
+                   (if (contains? jsn sub-elm)
+                     [(conj worklist
+                            {:json (get jsn sub-elm)
+                             :rest (rest rst)
+                             :path (conj pth sub-elm)
+                             :fail false
+                             :desc false})
+                      reslist]
+                     (if dsc
+                       [worklist reslist] ;; Recursive desc: don't add missing keys
+                       [worklist
+                        (conj! reslist
+                               {:json nil
+                                :rest (rest rst)
+                                :path (conj pth sub-elm)
+                                :fail true
+                                :desc false})])))
+                 [(pop worklist) reslist]
+                 element')]
+            (recur worklist' reslist'))
+          :else
+          (throw (ex-info "Illegal path element"
+                          {:type    ::illegal-path-element
+                           :strict? false
+                           :element element})))
+        ;; Path is exhausted; move item from worklist to reslist
+        (recur (pop worklist) (conj! reslist workitem)))
+      (mapv #(dissoc % :rest :desc) (persistent! reslist)))))
 
 (defn speculative-path-seqs
   "Similar to path-seqs, except it continues traversing the path even if
@@ -447,41 +478,44 @@
    same fields as path-seqs except for :fail."
   [json-obj json-path]
   (loop [worklist (init-queue {:json json-obj
-                               :rest (seq json-path)
-                               :path []})]
-    (if-not (every? (fn [{rst :rest}] (empty? rst)) worklist)
-      (let [{jsn :json rst :rest pth :path :as workitem}
-            (peek worklist)]
-        (if-let [element (first rst)]
-          (cond
-            ;; Recursive descent: not allowed
-            (= '.. element)
-            (throw (ex-info "illegal path element"
-                            {:type    ::illegal-path-element
-                             :element element}))
-            ;; Wildcard: append to end
-            (= '* element)
-            (recur (conj (pop worklist)
-                         {:json nil
-                          :rest (rest rst)
-                          :path (conj pth
-                                      (cond (vector? jsn) (-> jsn count)
-                                            (map? jsn) (-> jsn count str)
-                                            :else 0))}))
-            ;; Vector of keys/indices
-            (vector? element)
-            (if (or (some map? element) (some neg-int? element))
-              (throw (ex-info "illegal path element"
-                              {:type   ::illegal-path-element
-                               :element element}))
-              (let [worklist' (reduce (fn [acc sub-elm]
-                                        (conj acc
-                                              {:json (get jsn sub-elm)
-                                               :rest (rest rst)
-                                               :path (conj pth sub-elm)}))
-                                      (pop worklist)
-                                      element)]
-                (recur worklist'))))
-          ;; Cycle workitem to end
-          (recur (conj (pop worklist) workitem))))
-      (seq worklist))))
+                               :rest json-path
+                               :path []})
+         reslist  (transient [])]
+    (if-let [{jsn :json rst :rest pth :path :as workitem}
+             (peek worklist)]
+      (if-let [element (first rst)]
+        (cond
+          ;; Wildcard: append to end
+          (= '* element)
+          (let [worklist'
+                (conj (pop worklist)
+                      {:json nil
+                       :rest (rest rst)
+                       :path (conj pth (cond (vector? jsn) (-> jsn count)
+                                             (map? jsn) (-> jsn count str)
+                                             :else 0))})]
+            (recur worklist' reslist))
+          ;; Vector of keys/indices
+          (vector? element)
+          (let [worklist'
+                (reduce (fn [acc sub-elm]
+                          (if (or (string? sub-elm) (nat-int? sub-elm))
+                            (conj acc
+                                  {:json (get jsn sub-elm)
+                                   :rest (rest rst)
+                                   :path (conj pth sub-elm)})
+                            (throw (ex-info "Illegal path element"
+                                            {:type    ::illegal-path-element
+                                             :strict? true
+                                             :element element}))))
+                        (pop worklist)
+                        element)]
+            (recur worklist' reslist))
+          :else ;; Includes recursive descent
+          (throw (ex-info "Illegal path element"
+                          {:type    ::illegal-path-element
+                           :strict? true
+                           :element element})))
+          ;; Move workitem from worklist to reslist
+        (recur (pop worklist) (conj! reslist workitem)))
+      (persistent! reslist))))
