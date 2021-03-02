@@ -4,142 +4,32 @@ Utility Library for working with [JSON Path](https://goessner.net/articles/JsonP
 
 ## Data
 
-Any JSON data is accepted, but given our domain, we will largely be working
-with xAPI Statements. 
+Any JSON data is accepted, but given our domain, we will largely be working with xAPI Statements. 
 
-The following example is taken from: `./resources/pathetic/data/long.json`
+The following partial Statement example is taken from:
+`./resources/pathetic/data/long.json`
 
 ``` json
 {
     "id": "6690e6c9-3ef0-4ed3-8b37-7f3964730bee",
-    "actor": {
-        "name": "Team PB",
-        "mbox": "mailto:teampb@example.com",
-        "member": [
-            {
-                "name": "Andrew Downes",
-                "account": {
-                    "homePage": "http://www.example.com",
-                    "name": "13936749"
-                },
-                "objectType": "Agent"
-            },
-            {
-                "name": "Toby Nichols",
-                "openid": "http://toby.openid.example.org/",
-                "objectType": "Agent"
-            },
-            {
-                "name": "Ena Hills",
-                "mbox_sha1sum": "ebd31e95054c018b10727ccffd2ef2ec3a016ee9",
-                "objectType": "Agent"
-            }
-        ],
-        "objectType": "Group"
-    },
-    "verb": {
-        "id": "http://adlnet.gov/expapi/verbs/attended",
-        "display": {
-            "en-GB": "attended",
-            "en-US": "attended"
-        }
-    },
-    "object": {
-        "id": "http://www.example.com/meetings/occurances/34534",
-        "definition": {
-            "extensions": {
-                "http://example.com/profiles/meetings/activitydefinitionextensions/room": {"name": "Kilby", "id" : "http://example.com/rooms/342"}
-            },
-            "name": {
-                "en-GB": "example meeting",
-                "en-US": "example meeting"
-            },
-            "description": {
-                "en-GB": "An example meeting that happened on a specific occasion with certain people present.",
-                "en-US": "An example meeting that happened on a specific occasion with certain people present."
-            },
-            "type": "http://adlnet.gov/expapi/activities/meeting",
-            "moreInfo": "http://virtualmeeting.example.com/345256"
-        },
-        "objectType": "Activity"
-    },
+    "actor": {...},
+    "verb": {...},
+    "object": {...},
     "result": {
-        "extensions": {
-            "http://example.com/profiles/meetings/resultextensions/minuteslocation": "X:\\meetings\\minutes\\examplemeeting.one"
-        },
         "success": true,
         "completion": true,
-        "response": "We agreed on some example actions.",
-        "duration": "PT1H0M0S"
+        ...
     },
     "context": {
-        "registration": "ec531277-b57b-4c15-8d91-d292c5b2b8f7",
         "contextActivities": {
-            "parent": [
-                {
-                    "id": "http://www.example.com/meetings/series/267",
-                    "objectType": "Activity"
-                }
-            ],
             "category": [
-                {
-                    "id": "http://www.example.com/meetings/categories/teammeeting",
-                    "objectType": "Activity",
-                    "definition": {
-			            "name": {
-			                "en": "team meeting"
-			            },
-			            "description": {
-			                "en": "A category of meeting used for regular team meetings."
-			            },
-			            "type": "http://example.com/expapi/activities/meetingcategory"
-			        }
-                }
+                { "id": "http://www.example.com/meetings/categories/teammeeting",
+                  ...}
             ],
-            "other": [
-                {
-                    "id": "http://www.example.com/meetings/occurances/34257",
-                    "objectType": "Activity"
-                },
-                {
-                    "id": "http://www.example.com/meetings/occurances/3425567",
-                    "objectType": "Activity"
-                }
-            ]
+            ...
         },
-        "instructor" :
-        {
-        	"name": "Andrew Downes",
-            "account": {
-                "homePage": "http://www.example.com",
-                "name": "13936749"
-            },
-            "objectType": "Agent"
-        },
-        "team":
-        {
-        	"name": "Team PB",
-        	"mbox": "mailto:teampb@example.com",
-        	"objectType": "Group"
-        },
-        "platform" : "Example virtual meeting software",
-        "language" : "tlh",
-        "statement" : {
-        	"objectType":"StatementRef",
-        	"id" :"6690e6c9-3ef0-4ed3-8b37-7f3964730bee"
-        }
-
     },
-    "timestamp": "2013-05-18T05:32:34.804Z",
-    "stored": "2013-05-18T05:32:34.804Z",
-    "authority": {
-        "account": {
-            "homePage": "http://cloud.scorm.com/",
-            "name": "anonymous"
-        },
-        "objectType": "Agent"
-    },
-    "version": "1.0.0"
+    ...
 }
 ```
 
@@ -147,7 +37,7 @@ Within this README, the above JSON xAPI Statement will be referred to as `stmt`
 
 ## Usage
 
-The following API functions, with the exception of `path-spec/path->spec`, can be found in the `com.yetanalytics.pathetic` namespace.
+The following API functions, with the exception of `path-spec/path->spec`, can be found in the `com.yetanalytics.pathetic` namespace. Each function takes an optional `opts-map` argument for optional arguments.
 
 ### parse-path
 
@@ -182,14 +72,14 @@ The following optional arguments are supported:
 ### get-paths
 
 ```
-Given JSON data and a JSONPath string, return a vector of
+Given `json` and a JSONPath string `paths`, return a vector of
 definite key paths. Each key path is a vector of strings (keys)
 or integers (array indices); non-deterministic path entries like
 recursive descent and wildcards are removed. If the string
 contains multiple JSONPaths, we return the key paths for all
 strings.
    
-The following optional arguments are supported:
+The following `opts-map` fields are supported:
     :return-missing?  Return paths that cannot match any location
                       in the JSON data as nil. Default false.
 ```
@@ -209,11 +99,11 @@ The following optional arguments are supported:
 ### get-values
 
 ```
-Given JSON data and a JSONPath string, return a vector of
+Given `json` and a JSONPath string `paths`, return a vector of
 JSON values. If the string contains multiple JSONPaths, we return
 the union of all these values.
    
-The following optional arguments are supported:
+The following `opts-map` fields are supported:
     :return-missing?     Return values that cannot be found in the
                          JSON data as nil. Default false.
     :return-duplicates?  Return duplicate values in the array. Default
@@ -240,10 +130,10 @@ The following optional arguments are supported:
 ### get-path-value-map
 
 ```
-Given JSON data nd a JSONPath string, return a map associating
+Given `json` and a JSONPath string `paths`, return a map associating
 JSON paths to JSON values. Does not return duplicates.
 
-The following optional arguments are supported:
+The following `opts-map` arguments are supported:
     :return-missing?  Return path-value pairs where the path cannot
                       match any location in the JSON data. The object
                       is returned as nil. Default false.
@@ -258,13 +148,13 @@ The following optional arguments are supported:
 ### select-keys-at
 
 ```
-Given JSON data and a JSONPath string, return a vector of maps
+Given `json` and a JSONPath string `paths`, return a vector of maps
 that represent the key path into the JSON value. If the string
 contains multiple JSONPaths, we return the maps for all strings.
 If no value exists at the selection, return a truncated map with
 "{}" as the innermost possible value.
    
-The following optional arguments are supported:
+The following `opts-map` arguments are supported:
     :first?  Returns the maps corresponding to the first path (if
              paths are separated by \"|\"). Default false.
 ```
@@ -284,10 +174,10 @@ The following optional arguments are supported:
 ### excise
 
 ```
-Given JSON data and a JSONPath string, return the JSON value with
+Given `json` and a JSONPath string `paths`, return the JSON value with
 the elements at the location removed.
    
-The following optional arguments are supported:
+The following `opts-map` are supported:
     :prune-empty?  Removes empty maps and vectors, as well as
                    key-value pairs where values are empty, after the
                    elements are excised. Default false.
@@ -302,10 +192,10 @@ The following optional arguments are supported:
 ### apply-values
 
 ```
-Given JSON data, a JSONPath string, and a JSON value, apply the
-value to the location given by the path. If the location exists,
-update the pre-existing value. Otherwise, create the necessary
-data structures needed to contain the JSON value.
+Given `json`, a JSONPath string `paths`, and the JSON data
+`value`, apply `value` to the location given by `paths` If
+the location exists, update the pre-existing value. Otherwise,
+create the necessary data structures needed to contain `value`.
 
 The following caveats apply:
 - If an array index skips over any vector entries, those skipped
@@ -317,6 +207,8 @@ The following caveats apply:
     current size, e.g. {\"2\" : \"foo\"}.
 - Recursive descent, array slicing, and negative array indices
     are disallowed (as per strict mode).
+
+`apply-value` does not take an options map as an argument.
 ```
 
 ``` clojure
