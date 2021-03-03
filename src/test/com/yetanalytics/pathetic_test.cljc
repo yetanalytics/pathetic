@@ -47,7 +47,7 @@
            (parse-path "$['store']")))
     (is (= [[["store"]] [["book"] [0 1]]]
            (parse-path "$['store']|$.book[0,1]")))
-    (is (= [["store"]]
+    (is (= [[["store"]]]
            (parse-path "$['store']|$.book[0,1]" {:first? true})))
     (is (parse-failed? (parse-path "$foobar")))
     (is (strict-parse-failed? (parse-path "$..*" {:strict? true})))

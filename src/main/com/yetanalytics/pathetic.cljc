@@ -7,6 +7,24 @@
 ;; Helper functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn- assert-valid-parse
+  "Throw exception if result of json-path/parse is error data."
+  [res]
+  (when (json-path/is-parse-failure? res)
+   (throw (ex-info "Cannot parse JSONPath string"
+                   (assoc res :type ::invalid-path)))))
+
+(defn- assert-strict-valid
+  "Throw exception if `strict?` is true and vector of parsed
+   paths fails strict mode."
+  [strict? paths]
+  (when strict?
+    (when-let [strict-elem (some json-path/test-strict-path paths)]
+      (throw (ex-info "Illegal path element in strict mode"
+                      {:type    ::invalid-strict-path
+                       :paths   paths
+                       :element strict-elem})))))
+
 (defn- filter-missing
   "If filter? is true, then return only path sequences where the
    entire path has been exhausted, i.e. a value can be found at
@@ -80,19 +98,19 @@
 
 (defn parse-path
   "Given a JSONPath string `paths`, parse the string. Each parsed
-   path is a vector with the following entries:
+   path is a vector of the following elements:
      '..     recursive descent operator
      '*      wildcard operator
      [...]   a vector of strings (keys), integers (array indices), or
              maps (array slicing operations).
    
    The following `opts-map` fields are supported:
-     :first?   Return the first path when multiple paths are joined
-               using the \"|\" operator. Default false (in which case
-               a vector of paths is returned).
+     :first?   Return a singleton vector containing the first path
+               when multiple paths are joined using \"|\". Default
+               false.
      :strict?  If true, disallows recursive descent, array slicing,
                and negative indices. Conformant to the xAPI Profile
-               spec and used by apply-values. Default false."
+               spec. Default false."
   ([paths]
    (parse-path paths {}))
   ([paths opts-map]
@@ -100,21 +118,10 @@
           :or   {first? false strict? false}}
          opts-map
          res
-         (if first?
-           (json-path/parse-first paths)
-           (json-path/parse paths))]
-     (if (json-path/is-parse-failure? res)
-       (throw (ex-info "Cannot parse JSONPath string"
-                       (assoc res :type ::invalid-path)))
-       (do (when strict?
-             (when-let [strict-elem (if first?
-                                      (json-path/test-strict-path res)
-                                      (some json-path/test-strict-path res))]
-               (throw (ex-info "Illegal path element in strict mode"
-                               {:type    ::invalid-strict-path
-                                :paths   res
-                                :element strict-elem}))))
-           res)))))
+         (json-path/parse paths)]
+     (assert-valid-parse res)
+     (assert-strict-valid strict? res)
+     (if first? (subvec res 0 1) res))))
 
 ;; Originally "enumerate"
 
@@ -124,7 +131,11 @@
 
 (defn get-paths*
   "Like `get-paths` except that the `paths` argument is a vector
-   of already-parsed JSONPaths."
+   of already-parsed JSONPaths.
+   
+   The following `opts-map` fields are supported:
+     :return-missing?  Return partial paths for paths that cannot
+                       match any location in `json`. Default false."
   ([json paths]
    (get-paths* json paths {}))
   ([json paths opts-map]
@@ -146,12 +157,15 @@
    strings.
    
    The following `opts-map` fields are supported:
-     :return-missing?  Return paths that cannot match any location
-                       in the JSON data as nil. Default false."
+     :first?           Only apply the first \"|\"-separated path.
+     :strict?          Disallow recursive descent, array slicing,
+                       and negative array indices.
+     :return-missing?  Return partial paths for paths that cannot
+                       match any location in `json`. Default false."
   ([json paths]
    (get-paths* json (parse-path paths)))
   ([json paths opts-map]
-   (get-paths* json (parse-path paths) opts-map)))
+   (get-paths* json (parse-path paths opts-map) opts-map)))
 
 ;; Originally "get-at"
 
@@ -161,7 +175,13 @@
 
 (defn get-values*
   "Like `get-values` except that the `paths` argument is a vector
-   of already-parsed JSONPaths."
+   of already-parsed JSONPaths.
+   
+   The following `opts-map` fields are supported:
+     :return-missing?     Return values that cannot be found in `json`
+                          data as nil. Default false.
+     :return-duplicates?  Return duplicate values in the result.
+                          Default true."
   ([json paths]
    (get-values* json paths {}))
   ([json paths opts-map]
@@ -183,14 +203,17 @@
    the union of all these values.
    
    The following `opts-map` fields are supported:
-     :return-missing?     Return values that cannot be found in the JSON
-                          data as nil. Default false.
-     :return-duplicates?  Return duplicate values in the array. Default
-                          true."
+     :first?              Only apply the first \"|\"-separated path.
+     :strict?             Disallow recursive descent, array slicing,
+                          and negative array indices.
+     :return-missing?     Return values that cannot be found in `json`
+                          as nil. Default false.
+     :return-duplicates?  Return duplicate values in the result.
+                          Default true."
   ([json paths]
    (get-values* json (parse-path paths)))
   ([json paths opts-map]
-   (get-values* json (parse-path paths) opts-map)))
+   (get-values* json (parse-path paths opts-map) opts-map)))
 
 ;; Formerly "path->data"
 
@@ -200,7 +223,12 @@
 
 (defn get-path-value-map*
   "Like `get-path-value-map` except that the `paths` argument is a
-   vector of already-parsed JSONPaths."
+   vector of already-parsed JSONPaths.
+   
+   The following `opts-map` fields are supported:
+     :return-missing?  Return path-value pairs where the path cannot
+                       match any location in the `json` The result val
+                       is returned as nil. Default false."
   ([json paths]
    (get-path-value-map* json paths {}))
   ([json paths opts-map]
@@ -223,13 +251,16 @@
    JSON paths to JSON values. Does not return duplicates.
    
    The following `opts-map` fields are supported:
+     :first?           Only apply the first \"|\"-separated path.
+     :strict?          Disallow recursive descent, array slicing,
+                       and negative array indices.
      :return-missing?  Return path-value pairs where the path cannot
-                       match any location in the JSON data. The object
+                       match any location in the `json` The result val
                        is returned as nil. Default false."
   ([json paths]
    (get-path-value-map* json (parse-path paths)))
   ([json paths opts-map]
-   (get-path-value-map* json (parse-path paths) opts-map)))
+   (get-path-value-map* json (parse-path paths opts-map) opts-map)))
 
 ;; select-keys-at
 
@@ -239,8 +270,9 @@
 
 (defn select-keys-at*
   "Like `select-keys-at` except that the `paths` argument is a vector
-   of already-parsed JSONPaths. Unlike `select-keys-at`, there is no
-  `opts-map` arg, and singleton parsed paths are invalid arguments."
+   of already-parsed JSONPaths.
+   
+   Does not support an `opts-map` argument."
   [json paths]
   (letfn [(enum-maps
             [path]
@@ -260,16 +292,15 @@
    \"{}\" as the innermost possible value.
    
    The following `opts-map` fields are supported:
-     :first?  Returns the maps corresponding to the first path (if
-              paths are separated by \"|\"). Default false."
+     :first?   Returns only the map corresponding to the first
+               \"|\"-separated path. Default false.
+     :strict?  Disallow recursive descent, array slicing, and negative
+               array indices. Default false."
   ([json paths]
    (select-keys-at json paths {}))
   ([json paths opts-map]
-   (let [{:keys [first?] :or {first? false}} opts-map]
-     (if first?
-       ;; TODO: optimize
-       (first (select-keys-at* json [(parse-path paths {:first? true})]))
-       (select-keys-at* json (parse-path paths))))))
+   (let [res (select-keys-at* json (parse-path paths opts-map))]
+     (if (:first? opts-map) (first res) res))))
 
 ;; excise
 
@@ -330,7 +361,9 @@
 
 (defn apply-value*
   "Like `apply-value` except that the `paths` argument is a vector of
-   already-parsed JSONPaths."
+   already-parsed JSONPaths.
+   
+   Does not support an `opts-map` argument."
   [json paths value]
   (let [paths' (->> paths
                     (map (partial json-path/speculative-path-seqs json))
@@ -357,8 +390,11 @@
    - Recursive descent, array slicing, and negative array indices
      are disallowed (as per strict mode).
    
-   `apply-value` does not take an options map as an argument."
-  [json paths value]
-  (apply-value* json
-                (parse-path paths {:strict? true})
-                value))
+   The following `opts-map` fields are supported:
+     :first?   Returns only the map corresponding to the first
+               \"|\"-separated path. Default false.
+     :strict?  If provided, always overrides to true."
+  ([json paths value]
+   (apply-value* json (parse-path paths {:strict? true}) value))
+  ([json paths value opts-map]
+   (apply-value* json (parse-path paths (assoc opts-map :strict? true)) value)))
