@@ -320,45 +320,59 @@
    - Turn array splices into array index sequences
    - Turn negative array indices into positive ones"
   [keys json]
-  (letfn [(clamp-start [len idx]
-            (cond (< idx 0) 0
-                  (> idx len) len
-                  :else idx))
-          (clamp-end [len idx]
-            (cond (< idx -1) -1
-                  (> idx len) len
-                  :else idx))
-          (norm-start [len start]
-            (cond (= :vec-lower start) 0
-                  (= :vec-higher start) (dec len)
-                  (neg-int? start) (clamp-start len (+ len start))
-                  :else (clamp-start len start)))
-          (norm-end [len end]
-            (cond (= :vec-lower end) -1
-                  (= :vec-higher end) len
-                  (neg-int? end) (clamp-end len (+ len end))
-                  :else (clamp-end len end)))]
-    (persistent!
-     (reduce (fn [acc elem]
-               (cond
-                 (map? elem) ;; Element is an array splice
-                 (if (vector? json)
-                   (let [{:keys [start end step]} elem
-                         len   (count json)
-                         start (norm-start len start)
-                         end   (norm-end len end)
-                         step  (if (zero? step) 1 step) ;; no infinite loops
-                         nvals (range start end step)]
-                     (reduce (fn [acc v] (conj! acc v)) acc nvals))
-                   ;; JSON data is not a vector, return a dummy index such that
-                   ;; (get json 0) => nil
-                   (conj! acc 0))
-                 (neg-int? elem)
-                 (conj! acc (+ (count json) elem))
-                 :else
-                 (conj! acc elem)))
-             (transient [])
-             keys))))
+  (letfn [(clamp-start
+           [len idx]
+           (cond (< idx 0) 0
+                 (> idx len) len
+                 :else idx))
+          (clamp-end
+           [len idx]
+           (cond (< idx -1) -1
+                 (> idx len) len
+                 :else idx))
+          (norm-start
+           [len start]
+           (cond (= :vec-lower start) 0
+                 (= :vec-higher start) (dec len)
+                 (neg-int? start) (clamp-start len (+ len start))
+                 :else (clamp-start len start)))
+          (norm-end
+           [len end]
+           (cond (= :vec-lower end) -1
+                 (= :vec-higher end) len
+                 (neg-int? end) (clamp-end len (+ len end))
+                 :else (clamp-end len end)))
+          (normalize-index
+           [keys' elem]
+           (cond
+             (map? elem) ;; Element is an array splice
+             (if (vector? json)
+               (let [{:keys [start end step]} elem
+                     len   (count json)
+                     start (norm-start len start)
+                     end   (norm-end len end)
+                     step  (if (zero? step) 1 step) ;; no infinite loops
+                     nvals (range start end step)]
+                 (reduce (fn [keys' v] (conj! keys' v)) keys' nvals))
+               ;; JSON data is not a vector, return a dummy index such that
+               ;; (get json 0) => nil
+               (conj! keys' 0))
+             (neg-int? elem)
+             ;; Don't clamp normalized neg indices to 0; out of bounds = nil
+             (conj! keys' (+ (count json) elem))
+             :else
+             (conj! keys' elem)))
+          (normalize-indices*
+           [keys]
+           (persistent! (reduce normalize-index (transient []) keys)))]
+    ;; Optimization: don't normalize if there's only one key or index, and
+    ;; it is not a splice or negative int - the vast majority of cases.
+    (if (= 1 (count keys))
+      (let [k (peek keys)]
+        (if-not (or (map? k) (neg-int? k))
+          keys
+          (normalize-indices* keys)))
+      (normalize-indices* keys))))
 
 (defn- init-queue [init]
   #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
