@@ -63,14 +63,14 @@
         :wildcard ::wildcard
         :recursive ::recursive))
 
-(s/def ::json-path
+(s/def ::path
   (s/and (s/every ::element
                   :type vector?
                   :min-count 1)
          valid-recursive-descent?))
 
-(s/def ::json-paths
-  (s/every ::json-path
+(s/def ::paths
+  (s/every ::path
            :type vector?
            :min-count 1))
 
@@ -86,13 +86,13 @@
   (s/or :keyset   ::strict-keyset
         :wildcard ::wildcard))
 
-(s/def ::strict-json-path
+(s/def ::strict-path
   (s/every ::strict-element
            :type vector?
            :min-count 1))
 
-(s/def ::strict-json-paths
-  (s/every ::strict-json-paths
+(s/def ::strict-paths
+  (s/every ::strict-path
            :type vector?
            :min-count 1))
 
@@ -228,7 +228,7 @@
 
 (s/fdef parse
   :args (s/cat :path string?)
-  :ret  (s/or :success ::json-paths
+  :ret  (s/or :success ::paths
               :failure ::parse-failure))
 
 (defn parse
@@ -241,7 +241,7 @@
 
 (s/fdef parse-first
   :args (s/cat :path string?)
-  :ret  (s/or :success ::json-path
+  :ret  (s/or :success ::path
               :failure ::parse-failure))
 
 (defn parse-first
@@ -256,7 +256,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/fdef is-parse-failure?
-  :args (s/cat :x (s/or :success ::json-paths :failure ::parse-failure))
+  :args (s/cat :x (s/or :success ::paths :failure ::parse-failure))
   :ret boolean?)
 
 (defn is-parse-failure?
@@ -266,7 +266,7 @@
   (s/valid? ::parse-failure x))
 
 (s/fdef test-strict-path
-  :args (s/cat :parsed-path ::json-path)
+  :args (s/cat :parsed-path ::path)
   :ret (s/nilable ::element))
 
 (defn test-strict-path
@@ -282,7 +282,7 @@
        first))
 
 (s/fdef path->string
-  :args (s/cat :parsed-path ::json-path)
+  :args (s/cat :parsed-path ::path)
   :ret string?)
 
 (defn path->string
@@ -383,7 +383,7 @@
 (s/def ::fail boolean?)
 
 (s/fdef path-seqs
-  :args (s/cat :json ::json/json :path ::json-path)
+  :args (s/cat :json ::json/json :path ::path)
   :ret (s/every (s/keys :req-un [::json/json ::json/path ::fail])
                 :kind vector?))
 

@@ -122,8 +122,6 @@
 ;; Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; TODO: Parse string paths
-
 (defn path->spec*
   "Given a root spec and a parsed path into it, return the spec for
    that path, or nil if it is not possible. Accepts optional hint

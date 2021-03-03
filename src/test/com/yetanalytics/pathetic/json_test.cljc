@@ -1,6 +1,9 @@
 (ns com.yetanalytics.pathetic.json-test
   (:require [clojure.test :refer [deftest testing is]]
             [clojure.spec.alpha :as s]
+            [clojure.test.check]
+            [clojure.test.check.properties]
+            [clojure.spec.test.alpha :as stest]
             [com.yetanalytics.pathetic.json :as json
              :refer [recursive-descent jassoc jassoc-in]]))
 
@@ -24,7 +27,6 @@
 
 (deftest spec-test
   (testing "json-related specs"
-    (is (s/valid? ::json/any store-ex))
     (is (s/valid? ::json/json store-ex))
     (is (s/valid? ::json/json nil))
     (is (s/valid? ::json/path [1 2 3 "foo" "bar"]))))
@@ -106,9 +108,34 @@
 
 (deftest jassoc-in-test
   (testing "jassoc-in function"
+    (is (= nil
+           (jassoc-in nil [] :b)))
+    (is (= {}
+           (jassoc-in {} [] :b)))
+    (is (= {"foo" "bar"}
+           (jassoc-in {"foo" "bar"} [] :b)))
     (is (= {"0" :a}
            (jassoc-in nil ["0"] :a)))
     (is (= {"foo" {"bar" :b}}
            (jassoc-in {"foo" {"bar" :a}} ["foo" "bar"] :b)))
+    (is (= {"foo" {"bar" :a "baz" :b}}
+           (jassoc-in {"foo" {"bar" :a}} ["foo" "baz"] :b)))
     (is (= {"foo" [:b]}
-           (jassoc-in {"foo" {"bar" :a}} ["foo" 0] :b)))))
+           (jassoc-in {"foo" {"bar" :a}} ["foo" 0] :b)))
+    (is (= {"foo" :b}
+           (jassoc-in nil ["foo"] :b)))
+    (is (= [nil nil [nil nil nil 3]]
+           (jassoc-in nil [2 3] 3)))))
+
+(deftest gen-tests
+  (testing "Generative tests for json"
+    (let [results
+          (stest/check `[json/recursive-descent
+                         json/jassoc
+                         json/jassoc-in]
+                       {:clojure.spec.test.check/opts
+                        {:num-tests #?(:clj 100 :cljs 50)
+                         :seed (rand-int 2000000000)}})
+          {:keys [total check-passed]}
+          (stest/summarize-results results)]
+      (is (= total check-passed)))))

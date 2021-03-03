@@ -4,6 +4,18 @@
             [com.yetanalytics.pathetic.json-path :as json-path]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Specs
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; opts-map specs
+
+(s/def ::first? boolean?)
+(s/def ::strict? boolean?)
+(s/def ::return-missing? boolean?)
+(s/def ::return-duplicates? boolean?)
+(s/def ::prune-empty? boolean?)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -11,8 +23,8 @@
   "Throw exception if result of json-path/parse is error data."
   [res]
   (when (json-path/is-parse-failure? res)
-   (throw (ex-info "Cannot parse JSONPath string"
-                   (assoc res :type ::invalid-path)))))
+    (throw (ex-info "Cannot parse JSONPath string"
+                    (assoc res :type ::invalid-path)))))
 
 (defn- assert-strict-valid
   "Throw exception if `strict?` is true and vector of parsed
@@ -92,10 +104,6 @@
 
 ;; Originally "parse"
 
-(s/fdef parse-path
-  :args (s/cat :path string?)
-  :ret (s/or :first ::json/path :all (s/every ::json/path)))
-
 (defn parse-path
   "Given a JSONPath string `paths`, parse the string. Each parsed
    path is a vector of the following elements:
@@ -125,8 +133,10 @@
 
 ;; Originally "enumerate"
 
-(s/fdef get-paths
-  :args (s/cat :json ::json/json :paths string?)
+(s/fdef get-paths*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/paths
+               :opts-map (s/? (s/keys :opt-un [::return-missing?])))
   :ret (s/every ::json/path))
 
 (defn get-paths*
@@ -169,9 +179,12 @@
 
 ;; Originally "get-at"
 
-(s/fdef get-values
-  :args (s/cat :json ::json/json :paths string?)
-  :ret (s/every ::json/any))
+(s/fdef get-values*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/paths
+               :opts-map (s/? (s/keys :opt-un [::return-missing?
+                                               ::return-duplicates?])))
+  :ret (s/every ::json/json))
 
 (defn get-values*
   "Like `get-values` except that the `paths` argument is a vector
@@ -217,8 +230,10 @@
 
 ;; Formerly "path->data"
 
-(s/fdef get-path-value-map
-  :args (s/cat :json ::json/json :paths string?)
+(s/fdef get-path-value-map*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/paths
+               :opts-map (s/? (s/keys :opt-un [::return-missing?])))
   :ret (s/map-of ::json/path ::json/json))
 
 (defn get-path-value-map*
@@ -264,9 +279,10 @@
 
 ;; select-keys-at
 
-(s/fdef select-keys-at
-  :args (s/cat :json ::json/json :paths string?)
-  :ret ::json/any)
+(s/fdef select-keys-at*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/paths)
+  :ret ::json/json)
 
 (defn select-keys-at*
   "Like `select-keys-at` except that the `paths` argument is a vector
@@ -304,13 +320,20 @@
 
 ;; excise
 
-(s/fdef excise
-  :args (s/cat :json ::json/json :paths string?)
+(s/fdef excise*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/paths
+               :opts-map (s/? (s/keys :opt-un [::prune-empty?])))
   :ret ::json/json)
 
 (defn excise*
   "Like `excise` except that the `paths` argument is a vector of
-   already-parsed JSONPaths."
+   already-parsed JSONPaths.
+   
+   The following `opts-map` fields are supported:
+     :prune-empty?  Removes empty maps and vectors, as well as
+                    key-value pairs where values are empty, after the
+                    elements are excised. Default false."
   ([json paths]
    (excise* json paths {}))
   ([json paths opts-map]
@@ -358,8 +381,10 @@
 
 ;; Changed from "apply-values" to only accept one value
 
-(s/fdef apply-value
-  :args (s/cat :json ::json/json :paths string? :value ::json/json)
+(s/fdef apply-value*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/strict-paths
+               :value ::json/json)
   :ret ::json/json)
 
 (defn apply-value*

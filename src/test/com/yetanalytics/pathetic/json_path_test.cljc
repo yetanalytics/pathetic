@@ -178,12 +178,16 @@
 ;; pathetic-test
 
 (deftest gen-tests
-  (testing "Generative tests"
-    (stest/check `[json-path/is-parse-failure?
-                   json-path/test-strict-path
-                   json-path/path->string
-                   json-path/parse
-                   json-path/parse-first]
-                 {:clojure.spec.test.check/opts
-                  {:num-tests #?(:clj 100 :cljs 10)
-                   :seed (rand-int 2000000000)}})))
+  (testing "Generative tests for json-path"
+    (let [results
+          (stest/check `[json-path/is-parse-failure?
+                         json-path/test-strict-path
+                         json-path/path->string
+                         json-path/parse
+                         json-path/parse-first]
+                       {:clojure.spec.test.check/opts
+                        {:num-tests #?(:clj 100 :cljs 20)
+                         :seed (rand-int 2000000000)}})
+          {:keys [total check-passed]}
+          (stest/summarize-results results)]
+      (is (= total check-passed)))))
