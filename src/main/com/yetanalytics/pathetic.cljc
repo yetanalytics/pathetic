@@ -345,13 +345,16 @@
    the elements at the location removed.
    
    The following `opts-map` fields are supported:
+     :first?        Only apply the first \"|\"-separated path.
+     :strict?       Disallow recursive descent, array slicing, and
+                    negative array indices.
      :prune-empty?  Removes empty maps and vectors, as well as
                     key-value pairs where values are empty, after the
                     elements are excised. Default false."
   ([json paths]
    (excise* json (parse-path paths)))
   ([json paths opts-map]
-   (excise* json (parse-path paths) opts-map)))
+   (excise* json (parse-path paths opts-map) opts-map)))
 
 ;; Changed from "apply-values" to only accept one value
 
