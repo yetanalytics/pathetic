@@ -255,8 +255,8 @@
               :failure ::parse-failure))
 
 (defn parse-first
-  "Same as parse, but returns the first parsed JSON-path, or nil if the
-   paths are invalid."
+  "Same as `parse`, but returns the first parsed JSON-path, or `nil`
+   if the paths are invalid."
   [jsonpath-str]
   (let [parse-res (parse jsonpath-str)]
     (parse-bind parse-res first)))
@@ -297,8 +297,7 @@
   :fn   (fn [{:keys [args ret]}] (= (:parsed-path args) (parse-first ret))))
 
 (defn path->string
-  "Stringify a parsed path, e.g. ['* ['books']]
-   becomes \"$['*']['books']\"."
+  "Stringify a parsed path back into a JSONPath string."
   [parsed-path]
   (letfn [(sub-elem->str
             [sub-elm]
