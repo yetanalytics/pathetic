@@ -111,7 +111,7 @@
 
 ;; Originally "parse"
 
-(defn parse-path
+(defn parse-paths
   "Given a JSONPath string `paths`, parse the string. Each parsed
    path is a vector of the following elements:
      '..     recursive descent operator
@@ -127,7 +127,7 @@
                and negative indices. Conformant to the xAPI Profile
                spec. Default false."
   ([paths]
-   (parse-path paths {}))
+   (parse-paths paths {}))
   ([paths opts-map]
    (let [{:keys [first? strict?]
           :or   {first? false strict? false}}
@@ -180,9 +180,9 @@
      :return-missing?  Return partial paths for paths that cannot
                        match any location in `json`. Default false."
   ([json paths]
-   (get-paths* json (parse-path paths)))
+   (get-paths* json (parse-paths paths)))
   ([json paths opts-map]
-   (get-paths* json (parse-path paths opts-map) opts-map)))
+   (get-paths* json (parse-paths paths opts-map) opts-map)))
 
 ;; Originally "get-at"
 
@@ -231,9 +231,9 @@
      :return-duplicates?  Return duplicate values in the result.
                           Default true."
   ([json paths]
-   (get-values* json (parse-path paths)))
+   (get-values* json (parse-paths paths)))
   ([json paths opts-map]
-   (get-values* json (parse-path paths opts-map) opts-map)))
+   (get-values* json (parse-paths paths opts-map) opts-map)))
 
 ;; Formerly "path->data"
 
@@ -280,9 +280,9 @@
                        match any location in the `json` The result val
                        is returned as nil. Default false."
   ([json paths]
-   (get-path-value-map* json (parse-path paths)))
+   (get-path-value-map* json (parse-paths paths)))
   ([json paths opts-map]
-   (get-path-value-map* json (parse-path paths opts-map) opts-map)))
+   (get-path-value-map* json (parse-paths paths opts-map) opts-map)))
 
 ;; select-keys-at
 
@@ -322,7 +322,7 @@
   ([json paths]
    (select-keys-at json paths {}))
   ([json paths opts-map]
-   (let [res (select-keys-at* json (parse-path paths opts-map))]
+   (let [res (select-keys-at* json (parse-paths paths opts-map))]
      (if (:first? opts-map) (first res) res))))
 
 ;; excise
@@ -387,9 +387,9 @@
                     key-value pairs where values are empty, after the
                     elements are excised. Default false."
   ([json paths]
-   (excise* json (parse-path paths)))
+   (excise* json (parse-paths paths)))
   ([json paths opts-map]
-   (excise* json (parse-path paths opts-map) opts-map)))
+   (excise* json (parse-paths paths opts-map) opts-map)))
 
 ;; Changed from "apply-values" to only accept one value
 
@@ -437,6 +437,6 @@
                false.
      :strict?  If provided, always overrides to true."
   ([json paths value]
-   (apply-value* json (parse-path paths {:strict? true}) value))
+   (apply-value* json (parse-paths paths {:strict? true}) value))
   ([json paths value opts-map]
-   (apply-value* json (parse-path paths (assoc opts-map :strict? true)) value)))
+   (apply-value* json (parse-paths paths (assoc opts-map :strict? true)) value)))

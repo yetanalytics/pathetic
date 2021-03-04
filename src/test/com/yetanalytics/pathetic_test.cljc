@@ -40,19 +40,19 @@
 (deftest parse-path-test
   (testing "Parsing JSONPath strings"
     (is (= [[["store"]]]
-           (p/parse-path "$['store']")))
+           (p/parse-paths "$['store']")))
     (is (= [[["store"]] [["book"] [0 1]]]
-           (p/parse-path "$['store']|$.book[0,1]")))
+           (p/parse-paths "$['store']|$.book[0,1]")))
     (is (= [[["store"]]]
-           (p/parse-path "$['store']|$.book[0,1]" {:first? true})))
-    (is (parse-failed? (p/parse-path "$foobar")))
-    (is (strict-parse-failed? (p/parse-path "$..*"
+           (p/parse-paths "$['store']|$.book[0,1]" {:first? true})))
+    (is (parse-failed? (p/parse-paths "$foobar")))
+    (is (strict-parse-failed? (p/parse-paths "$..*"
                                             {:strict? true})))
-    (is (strict-parse-failed? (p/parse-path "$['store'][-1]"
+    (is (strict-parse-failed? (p/parse-paths "$['store'][-1]"
                                             {:strict? true})))
-    (is (strict-parse-failed? (p/parse-path "$['store'][0:5:1]"
+    (is (strict-parse-failed? (p/parse-paths "$['store'][0:5:1]"
                                             {:strict? true})))
-    (is (strict-parse-failed? (p/parse-path "$['store'][0:5:1]"
+    (is (strict-parse-failed? (p/parse-paths "$['store'][0:5:1]"
                                             {:first? true :strict? true})))))
 
 (deftest get-paths-test
