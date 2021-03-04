@@ -352,7 +352,7 @@
                  (= :vec-higher end) len
                  (neg-int? end) (clamp-end len (+ len end))
                  :else (clamp-end len end)))
-          (normalize-index
+          (normalize-element
            [keys' elem]
            (cond
              (map? elem) ;; Element is an array splice
@@ -374,7 +374,7 @@
              (conj! keys' elem)))
           (normalize-indices*
            [keys]
-           (persistent! (reduce normalize-index (transient []) keys)))]
+           (->> keys (reduce normalize-element (transient [])) persistent!))]
     ;; Optimization: don't normalize if there's only one key or index, and
     ;; it is not a splice or negative int - the vast majority of cases.
     (if (= 1 (count keys))
@@ -388,14 +388,14 @@
   #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
      :cljs (conj cljs.core/PersistentQueue.EMPTY init)))
 
-;; Helper specs
+;; Main functions
 
 (s/def ::fail boolean?)
 
 (s/fdef path-seqs
   :args (s/cat :json ::json/json :path ::path)
-  :ret (s/every (s/keys :req-un [::json/json ::json/path ::fail])
-                :kind vector?))
+  :ret  (s/every (s/keys :req-un [::json/json ::json/path ::fail])
+                 :kind vector?))
 
 (defn path-seqs
   "Given a JSON object and a parsed JSONPath, return a seq of
@@ -421,8 +421,10 @@
           ;; Short circuit: if json is a primitive or nil stop traversal
           (not (coll? jsn))
           (if dsc
-            (recur (pop worklist) reslist) ;; Recursive desc; ignore
-            (let [worklist' (pop worklist) ;; Otherwise, mark failure
+            ;; Recursive desc; ignore
+            (recur (pop worklist) reslist)
+            ;; Otherwise, mark failure
+            (let [worklist' (pop worklist)
                   reslist'  (conj! reslist
                                    {:json nil
                                     :path pth
@@ -445,8 +447,10 @@
                              :desc false})
                       reslist]
                      (if dsc
-                       [worklist reslist] ;; Recursive desc: don't add missing keys
-                       [worklist          ;; Otherwise, mark failure
+                       ;; Recursive desc: don't add missing keys
+                       [worklist reslist]
+                       ;; Otherwise, mark failure
+                       [worklist
                         (conj! reslist
                                {:json nil
                                 :path (conj pth sub-elm)
@@ -458,11 +462,13 @@
           (= '* element)
           (let [[worklist' reslist']
                 (if (zero? (count jsn))
+                  ;; No children in coll; mark failure
                   [(pop worklist)
                    (conj! reslist
                           {:json nil
                            :path pth
                            :fail true})]
+                  ;; Children in coll; continue
                   [(reduce-kv
                     (fn [worklist key child]
                       (conj worklist
@@ -501,6 +507,11 @@
           (recur worklist' reslist')))
       (persistent! reslist))))
 
+(s/fdef speculative-path-seqs
+  :args (s/cat :json ::json/json :path ::strict-path)
+  :ret  (s/every (s/keys :req-un [::json/json ::json/path])
+                 :kind vector?))
+
 (defn speculative-path-seqs
   "Similar to path-seqs, except it continues traversing the path even if
    the location in the JSON data is missing or incompatible. Returns the
@@ -516,18 +527,19 @@
           ;; Vector of keys/indices
           (vector? element)
           (let [worklist'
-                (reduce (fn [worklist sub-elm]
-                          (if (or (string? sub-elm) (nat-int? sub-elm))
-                            (conj worklist
-                                  {:json (get jsn sub-elm)
-                                   :rest (rest rst)
-                                   :path (conj pth sub-elm)})
-                            (throw (ex-info "Illegal path element"
-                                            {:type    ::illegal-path-element
-                                             :strict? true
-                                             :element element}))))
-                        (pop worklist)
-                        element)]
+                (reduce
+                 (fn [worklist sub-elm]
+                   (if (or (string? sub-elm) (nat-int? sub-elm))
+                     (conj worklist
+                           {:json (get jsn sub-elm)
+                            :rest (rest rst)
+                            :path (conj pth sub-elm)})
+                     (throw (ex-info "Illegal path element"
+                                     {:type    ::illegal-path-element
+                                      :strict? true
+                                      :element element}))))
+                 (pop worklist)
+                 element)]
             (recur worklist' reslist))
           ;; Wildcard: append to end
           (= '* element)
@@ -535,16 +547,17 @@
                 (conj (pop worklist)
                       {:json nil
                        :rest (rest rst)
-                       :path (conj pth (cond (vector? jsn) (-> jsn count)
-                                             (map? jsn) (-> jsn count str)
-                                             :else 0))})]
+                       :path (conj pth (cond
+                                         (vector? jsn) (-> jsn count)
+                                         (map? jsn) (-> jsn count str)
+                                         :else 0))})]
             (recur worklist' reslist))
           :else ;; Includes recursive descent
           (throw (ex-info "Illegal path element"
                           {:type    ::illegal-path-element
                            :strict? true
                            :element element})))
-        ;; Move workitem from worklist to reslist
+        ;; Path is exhausted; move item from worklist to reslist
         (let [worklist' (pop worklist)
               reslist'  (conj! reslist
                                {:json jsn

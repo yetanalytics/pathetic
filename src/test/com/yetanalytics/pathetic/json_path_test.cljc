@@ -185,7 +185,10 @@
                          json-path/test-strict-path
                          json-path/path->string
                          json-path/parse
-                         json-path/parse-first]
+                         json-path/parse-first
+                         json-path/path-seqs
+                         ;; Skip since generator can get quite slow
+                         #_json-path/speculative-path-seqs]
                        {:clojure.spec.test.check/opts
                         {:num-tests #?(:clj 100 :cljs 20)
                          :seed (rand-int 2000000000)}})
