@@ -82,21 +82,28 @@
 
 (defn- remove-nth
   [coll n]
-  (vec (concat (subvec coll 0 n)
-               (subvec coll (inc n)))))
+  (if-not (empty? coll)
+    (vec (concat (subvec coll 0 n) (subvec coll (inc n))))
+    coll))
 
-(defn- cmp-vecs
-  "Sort vectors lexicographically, with strings always coming before ints."
-  [vec-1 vec-2]
-  (loop [v1 vec-1 v2 vec-2]
-    (if-let [x1 (first v1)]
-      (if-let [x2 (first v2)]
-        (cond (and (string? x1) (int? x2)) -1
-              (and (int? x1) (string? x2)) 1
-              (= x1 x2) (recur (rest v1) (rest v2))
-              :else (compare x1 x2))
-        (compare v1 v2))
-      (compare v1 v2))))
+(defn- cmp-seqs
+  "Sort sequences lexicographically, such that:
+   - shorter seqs come after longer seqs
+   - strings come after ints
+   This is the reverse of the default `compare` fn on vectors."
+  [seq-1 seq-2]
+  (loop [s1 seq-1 s2 seq-2]
+    (let [x1 (first s1)
+          x2 (first s2)]
+      (cond
+        (and (some? x1) (some? x2))
+        (cond (and (string? x1) (int? x2)) 1
+              (and (int? x1) (string? x2)) -1
+              (= x1 x2) (recur (rest s1) (rest s2))
+              :else (* -1 (compare x1 x2)))
+        (and (nil? x1) (nil? x2)) 0
+        (some? x1) -1
+        (some? x2) 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; API functions
@@ -184,7 +191,7 @@
                :paths ::json-path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?
                                                ::return-duplicates?])))
-  :ret (s/every ::json/json))
+  :ret (s/every ::json/json :kind vector?))
 
 (defn get-values*
   "Like `get-values` except that the `paths` argument is a vector
@@ -234,7 +241,7 @@
   :args (s/cat :json ::json/json
                :paths ::json-path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?])))
-  :ret (s/map-of ::json/path ::json/json))
+  :ret (s/every-kv ::json/path ::json/json))
 
 (defn get-path-value-map*
   "Like `get-path-value-map` except that the `paths` argument is a
@@ -294,15 +301,15 @@
             [path]
             (reduce (fn [json {jsn :json pth :path}]
                       (if (nil? jsn)
-                        (assoc-in json (butlast pth) {})
-                        (assoc-in json pth jsn)))
+                        (json/jassoc-in json (butlast pth) {})
+                        (json/jassoc-in json pth jsn)))
                     {}
                     (json-path/path-seqs json path)))]
-    (->> paths (map enum-maps) (map int-maps->vectors) vec)))
+    (->> paths (map enum-maps) (mapv int-maps->vectors))))
 
 (defn select-keys-at
-  "Given `json` and a JSONPath string `paths`, return a vector of maps
-   that represent the key path into the JSON value. If the string
+  "Given `json` and a JSONPath string `paths`, return a map or
+   vector of maps representing the key path into `json`. If the string
    contains multiple JSONPaths, we return the maps for all strings.
    If no value exists at the selection, return a truncated map with
    \"{}\" as the innermost possible value.
@@ -342,24 +349,29 @@
          prune-fn
          (if prune-empty? prune identity)
          rm-fn
-         (fn [coll k] (if (int? k)
-                        (remove-nth coll k)
-                        (dissoc coll k)))
+         (fn [coll k]
+           (if (int? k)
+             (remove-nth coll k)
+             (dissoc coll k)))
          paths'
          (->> paths
               (map (partial json-path/path-seqs json))
-              (apply concat)               ;; Flatten coll of path seqs
-              (filterv (complement :fail)) ;; Don't excise fail paths
-              (mapv :path)
-              (sort cmp-vecs) ;; Sort/reverse so higher-index vector
-              reverse)]       ;; entries are removed before low-index ones
+              (apply concat)
+              ;; Don't excise failed paths
+              (filterv (complement :fail))
+              (map :path)
+              ;; Remove identical paths to avoid out-of-bounds errors
+              distinct
+              ;; Sort so higher-index vector entries are removed before low-index ones
+              (sort cmp-seqs))]
      (prune-fn
       (reduce (fn [json path]
-                (let [last-key (last path)
-                      rem-keys (butlast path)]
-                  (if (empty? rem-keys)
-                    (rm-fn json last-key) ;; update-in fails on empty key-paths
-                    (update-in json rem-keys rm-fn last-key))))
+                (when-not (empty? path) ;; Return nil for "$"
+                  (let [last-key (last path)
+                        rem-keys (butlast path)]
+                    (if (empty? rem-keys)
+                      (rm-fn json last-key) ;; update-in fails on empty key-paths
+                      (update-in json rem-keys rm-fn last-key)))))
               json
               paths')))))
 
@@ -408,6 +420,8 @@
    create the necessary data structures needed to contain `value`.
 
    The following caveats apply:
+   - If only the root \"$\" is provided, `json` is overwritten in
+     its entirety.
    - If an array index skips over any vector entries, those skipped
      entries will be assigned nil.
    - If a path contains a wildcard and the location up to that
@@ -419,8 +433,8 @@
      are disallowed (as per strict mode).
    
    The following `opts-map` fields are supported:
-     :first?   Returns only the map corresponding to the first
-               \"|\"-separated path. Default false.
+     :first?   Apply only the first \"|\"-separated path. Default
+               false.
      :strict?  If provided, always overrides to true."
   ([json paths value]
    (apply-value* json (parse-path paths {:strict? true}) value))

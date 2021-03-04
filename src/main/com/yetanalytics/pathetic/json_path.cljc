@@ -25,10 +25,21 @@
 ;; wildcard       := '*
 ;; recursive      := '..
 
-(defn valid-recursive-descent?
+(defn- valid-slice-limits?
+  "Returns false if the conformed slice limits are nonsensical based
+   on the sign of the step."
+  [{:keys [start end step]}]
+  (let [[_ start] start [_ end] end]
+    (if (nat-int? step)
+      (and (not= :vec-higher start) (not= :vec-lower end))
+      (and (not= :vec-lower start) (not= :vec-higher end)))))
+
+(defn- valid-recursive-descent?
   "Returns false if the path vector does not have a '.. symbol followed
    by no children or another '.., true otherwise."
   [path]
+  ;; Could be made cleaner using seq combinators but this is a quick and
+  ;; dirty solution.
   (loop [path path]
     (if-let [elem (first path)]
       (if (= '.. elem)
@@ -48,9 +59,10 @@
 (s/def :slice/start (s/or :index int? :limit #{:vec-higher :vec-lower}))
 (s/def :slice/end (s/or :index int? :limit #{:vec-higher :vec-lower}))
 (s/def :slice/step int?)
-(s/def ::slice (s/keys :req-un [:slice/start
-                                :slice/end
-                                :slice/step]))
+(s/def ::slice (s/and (s/keys :req-un [:slice/start
+                                       :slice/end
+                                       :slice/step])
+                      valid-slice-limits?))
 
 (s/def ::keyset
   (s/every (s/or :key string? :index int? :slice ::slice)
@@ -65,8 +77,7 @@
 
 (s/def ::path
   (s/and (s/every ::element
-                  :type vector?
-                  :min-count 1)
+                  :type vector?)
          valid-recursive-descent?))
 
 (s/def ::paths
@@ -88,8 +99,7 @@
 
 (s/def ::strict-path
   (s/every ::strict-element
-           :type vector?
-           :min-count 1))
+           :type vector?))
 
 (s/def ::strict-paths
   (s/every ::strict-path
@@ -164,15 +174,15 @@
     {:start start :end end :step 1}
     ;; Variable steps
     [[":" ":" [step]]]
-    (if (pos-int? step)
+    (if (nat-int? step)
       {:start :vec-lower :end :vec-higher :step step}
       {:start :vec-higher :end :vec-lower :step step})
     [[[start] ":" ":" [step]]]
-    (if (pos-int? step)
+    (if (nat-int? step)
       {:start start :end :vec-higher :step step}
       {:start start :end :vec-lower :step step})
     [[":" [end] ":" [step]]]
-    (if (pos-int? step)
+    (if (nat-int? step)
       {:start :vec-lower :end end :step step}
       {:start :vec-higher :end end :step step})
     [[[start] ":" [end] ":" [step]]]
@@ -283,7 +293,8 @@
 
 (s/fdef path->string
   :args (s/cat :parsed-path ::path)
-  :ret string?)
+  :ret  string?
+  :fn   (fn [{:keys [args ret]}] (= (:parsed-path args) (parse-first ret))))
 
 (defn path->string
   "Stringify a parsed path, e.g. ['* ['books']]
@@ -446,16 +457,24 @@
             (recur worklist' reslist'))
           ;; Wildcard
           (= '* element)
-          (let [worklist' (reduce-kv
-                           (fn [worklist key child]
-                             (conj worklist
-                                   {:json child
-                                    :rest (rest rst)
-                                    :path (conj pth key)
-                                    :desc false}))
-                           (pop worklist)
-                           jsn)]
-            (recur worklist' reslist))
+          (let [[worklist' reslist']
+                (if (zero? (count jsn))
+                  [(pop worklist)
+                   (conj! reslist
+                          {:json nil
+                           :path pth
+                           :fail true})]
+                  [(reduce-kv
+                    (fn [worklist key child]
+                      (conj worklist
+                            {:json child
+                             :rest (rest rst)
+                             :path (conj pth key)
+                             :desc false}))
+                    (pop worklist)
+                    jsn)
+                   reslist])]
+            (recur worklist' reslist'))
           ;; Recursive descent
           (= '.. element)
           (let [desc-list (json/recursive-descent jsn)

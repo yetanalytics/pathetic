@@ -59,16 +59,23 @@
   (testing "Enumerate deterministic JSONPaths"
     (is (= []
            (p/get-paths nil "$.foo")))
+    (is (= []
+           (p/get-paths [] "$[0]")))
     (is (= [[]]
            (p/get-paths nil "$.foo" {:return-missing? true})))
     (is (= [["universe" 0 "foo" "bar"]]
            (p/get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                         "$.universe.*.foo.bar")))
-    (is (= [["universe" 1 "foo"] ;; Why is the order reversed?
+    (is (= [["universe" 1 "foo"] ;; Order reversed due to BFS
             ["universe" 0 "foo" "bar"]]
            (p/get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                         "$.universe.*.foo.bar"
                         {:return-missing? true})))
+    (is (= (p/get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                        "$.universe[0].foo.bar")
+           (p/get-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                        "$.universe[0].foo.bar | $.universe[1].baz"
+                        {:first? true})))
     (is (= [["store" "book" 0 "author"]
             ["store" "book" 1 "author"]
             ["store" "book" 2 "author"]
@@ -244,6 +251,8 @@
       "$.result['success', 'completion']"
       ["http://www.example.com/meetings/categories/teammeeting"]
       "$.context.contextActivities.category[*].id")
+    (is (= (p/get-values long-statement "$.id")
+           (p/get-values long-statement "$.id | $.timestamp" {:first? true})))
     ;; Misses
     (are [path]
          (= [nil] (p/get-values long-statement path {:return-missing? true}))
@@ -262,8 +271,18 @@
            (p/get-path-value-map nil "$.foo")))
     (is (= {[] nil}
            (p/get-path-value-map nil "$.foo" {:return-missing? true})))
+    (is (= {[0] {} [1] {}}
+           (p/get-path-value-map [{} {}] "$[*]")))
+    (is (= {}
+           (p/get-path-value-map [{} {}] "$[*][*]")))
+    (is (= {[0] nil [1] nil}
+           (p/get-path-value-map [{} {}] "$[*][*]" {:return-missing? true})))
+    (is (= {[0] nil [1] nil}
+           (p/get-path-value-map [{} {}] "$[*][*]['a']" {:return-missing? true})))
     (is (= {["foo"] nil}
            (p/get-path-value-map {"foo" nil} "$.foo")))
+    (is (= {["foo"] nil}
+           (p/get-path-value-map {"foo" nil} "$.foo | $.bar" {:first? true})))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"}
            (p/get-path-value-map goessner-ex "$.store.book[0].author")))
     (is (= {["store" "book" 0 "author"] "Nigel Rees"
@@ -284,8 +303,13 @@
 
 (deftest select-keys-at-test
   (testing "Selecting keys with a JSONPath."
-    (is (= {nil {}} (p/select-keys-at nil "$.foo" {:first? true})))
-    (is (= {nil {}} (p/select-keys-at {} "$.foo" {:first? true})))
+    (is (= {} (p/select-keys-at nil "$.foo" {:first? true})))
+    (is (= {} (p/select-keys-at {} "$.foo" {:first? true})))
+    (is (= 2 (p/select-keys-at 2 "$" {:first? true})))
+    (is (= {"foo" 2} (p/select-keys-at {"foo" 2} "$" {:first? true})))
+    (is (= {"foo" 2} (p/select-keys-at {"foo" 2} "$.*" {:first? true})))
+    (is (= (first (p/select-keys-at {"foo" 2} "$.foo"))
+           (p/select-keys-at {"foo" 2} "$.foo | $.bar" {:first? true})))
     (are [expected path]
          (= expected (p/select-keys-at goessner-ex path))
       [{"store" {"book" [{"author" "Nigel Rees"}
@@ -342,33 +366,39 @@
   (testing "Excising values using JSONPath"
     (is (= nil
            (p/excise nil "$.foo")))
-    (is (= [:b :c]
-           (p/excise [:a :b :c] "$[0]")))
-    (is (= [:a :b :c]
-           (p/excise [:a :b :c] "$[3]")))
+    (is (= nil
+           (p/excise 42 "$")))
+    (is (= nil
+           (p/excise ["a" "b" "c"] "$")))
+    (is (= nil
+           (p/excise ["a" "b" "c"] "$ | $[0]")))
+    (is (= ["b" "c"]
+           (p/excise ["a" "b" "c"] "$[0]")))
+    (is (= ["a" "b" "c"]
+           (p/excise ["a" "b" "c"] "$[3]")))
     (is (= {"universe" [{} {}]}
-           (p/excise {"universe" [{"foo" :a} {"foo" :b}]}
+           (p/excise {"universe" [{"foo" 0} {"foo" 1}]}
                      "$.universe.*.foo")))
     (is (= {}
-           (p/excise {"universe" [{"foo" :a} {"foo" :b}]}
+           (p/excise {"universe" [{"foo" 0} {"foo" 1}]}
                      "$.universe.*.foo"
                      {:prune-empty? true})))
-    (is (= {"universe" [{"bar" :b}]}
-           (p/excise {"universe" [{"foo" :a} {"bar" :b}]}
+    (is (= {"universe" [{"bar" 1}]}
+           (p/excise {"universe" [{"foo" 0} {"bar" 1}]}
                      "$.universe.*.foo"
                      {:prune-empty? true})))
     (is (= {"universe" [{"foo" {}} {}]}
-           (p/excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]}
+           (p/excise {"universe" [{"foo" {"bar" 0}} {"bar" 1}]}
                      "$.universe..bar")))
     (is (= {}
-           (p/excise {"universe" [{"foo" {"bar" :a}} {"bar" :b}]}
+           (p/excise {"universe" [{"foo" {"bar" 0}} {"bar" 1}]}
                      "$.universe..bar"
                      {:prune-empty? true})))
-    (is (= {"universe" [{"foo" {}} {"baz" :c}]}
-           (p/excise {"universe" [{"foo" {"bar" :a}} {"bar" :b "baz" :c}]}
+    (is (= {"universe" [{"foo" {}} {"baz" 2}]}
+           (p/excise {"universe" [{"foo" {"bar" 0}} {"bar" 1 "baz" 2}]}
                      "$.universe..bar")))
-    (is (= {"universe" [{"baz" :c}]}
-           (p/excise {"universe" [{"foo" {"bar" :a}} {"bar" :b "baz" :c}]}
+    (is (= {"universe" [{"baz" 2}]}
+           (p/excise {"universe" [{"foo" {"bar" 0}} {"bar" 1 "baz" 2}]}
                      "$.universe..bar"
                      {:prune-empty? true})))
     (is (= {"store" {"book"    [{"author" "Nigel Rees"}
@@ -381,6 +411,12 @@
                               | $['store']['book'][*]['title']
                               | $['store']['book'][*]['price']
                               | $['store']['book'][*]['isbn']")))
+    (is (= (p/excise {"foo" {"bar" {}}} "$.foo | $.foo.bar")
+           (p/excise {"foo" {"bar" {}}} "$..*")))
+    (is (= (p/excise {"foo" {"bar" {}}} "$.foo | $.foo.bar")
+           (p/excise {"foo" {"bar" {}}} "$.foo.bar | $.foo")))
+    (is (= (p/excise {"foo" {"bar" {}}} "$.foo.bar")
+           (p/excise {"foo" {"bar" {}}} "$.foo.bar | $.foo" {:first? true})))
     (is (= (dissoc long-statement "id")
            (p/excise long-statement "$.id")))
     (is (= (update-in long-statement
@@ -395,29 +431,32 @@
 
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
-    (is (= {"foo" :a}
-           (p/apply-value nil "$.foo" :a)))
+    (is (= {"foo" 0}
+           (p/apply-value nil "$.foo" 0)))
+    (is (= [nil "bar"]
+           (p/apply-value {} "$[1]" "bar")))
     (are [expected path]
          (= expected
-            (p/apply-value {"universe" [{"foo" :a} {"bar" :b}]} path :c))
-      {"universe" [{"foo" :a} {"bar" :b "baz" :c}]}       "$.universe[1].baz"
-      {"universe" [{"foo" :a} {"bar" :c}]}                "$.universe[1].bar"
-      {"universe" [{"foo" :a} {"bar" [:c]}]}              "$.universe[1].bar.*"
-      {"universe" [{"foo" :a} {"bar" [:c]}]}              "$.universe[1].bar[0]"
-      {"universe" [{"foo" :a} {"bar" [nil :c]}]}          "$.universe[1].bar[1]"
-      {"universe" [{"foo" :a} {"bar" [:c nil :c]}]}       "$.universe[1].bar[0,2]"
-      {"universe" [{"foo" :a} {"bar" :b "1" :c}]}         "$.universe[1].*"
-      {"universe" [{"foo" :a} {"bar" :b} {"baz" :c}]}     "$.universe[*].baz"
-      {"universe" [{"foo" :a "b" :c} {"bar" :b "b" :c}]}  "$.universe[0,1].b"
-      {"universe" [:c :c]}                                "$.universe[0,1]"
-      {"universe" :c "baz" :c}                            "$['universe','baz']"
-      {"universe" :c "baz" :c}                            "$.universe|$.baz"
-      {"universe" [{"foo" :a} {"bar" :b}] "baz" :c}       "$.baz"
-      {"universe" [{"foo" :a} {"bar" :b}] "1" {"baz" :c}} "$.*.baz"
-      {"universe" [{"foo" :a} {"bar" :b}] "1" :c}         "$.*"
-      [:c]                                                "$[0]"
-      nil                                                 "$")
-    (is (strict-parse-failed? (p/apply-value {"universe" :a} "$..*" :c)))
+            (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]} path 2))
+      {"universe" [{"foo" 0} {"bar" 1 "baz" 2}]}       "$.universe[1].baz"
+      {"universe" [{"foo" 0} {"bar" 2}]}               "$.universe[1].bar"
+      {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar.*"
+      {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar[0]"
+      {"universe" [{"foo" 0} {"bar" [nil 2]}]}         "$.universe[1].bar[1]"
+      {"universe" [{"foo" 0} {"bar" [2 nil 2]}]}       "$.universe[1].bar[0,2]"
+      {"universe" [{"foo" 0} {"bar" 1 "1" 2}]}         "$.universe[1].*"
+      {"universe" [{"foo" 0} {"bar" 1} {"baz" 2}]}     "$.universe[*].baz"
+      {"universe" [{"foo" 0 "b" 2} {"bar" 1 "b" 2}]}   "$.universe[0,1].b"
+      {"universe" [2 2]}                               "$.universe[0,1]"
+      {"universe" 2 "baz" 2}                           "$['universe','baz']"
+      {"universe" 2 "baz" 2}                           "$.universe|$.baz"
+      {"universe" [{"foo" 0} {"bar" 1}] "baz" 2}       "$.baz"
+      {"universe" [{"foo" 0} {"bar" 1}] "1" {"baz" 2}} "$.*.baz"
+      {"universe" [{"foo" 0} {"bar" 1}] "1" 2}         "$.*"
+      [2]       "$[0]"
+      2         "$"
+      {"foo" 2} "$ | $.foo")
+    (is (strict-parse-failed? (p/apply-value {"universe" 0} "$..*" 2)))
     ;; Tests on Statement
     (is (= (assoc long-statement "foo" "bar")
            (p/apply-value long-statement "$.foo" "bar")))
@@ -436,22 +475,17 @@
 (deftest gen-tests
   (testing "Generative tests for pathetic"
     (let [results
-          (stest/check `[#_p/get-paths* ;; Bad!
-                         #_p/get-values* ;; Good!
-                         #_p/get-path-value-map*
-                         #_p/select-keys-at* ;; Bad!
-                         #_p/excise* ;; Exception!
-                         p/apply-value* ;; Infinite loop!
-                         ]
+          (stest/check `[p/get-paths*
+                         p/get-values*
+                         p/get-path-value-map*
+                         p/select-keys-at*
+                         p/excise*
+                         ;; Don't check apply-value* since the generator often
+                         ;; gets stuck.
+                         #_p/apply-value*]
                        {:clojure.spec.test.check/opts
-                        {:num-tests #?(:clj 100 :cljs 50)
+                        {:num-tests #?(:clj 200 :cljs 40)
                          :seed (rand-int 2000000000)}})
           {:keys [total check-passed]}
           (stest/summarize-results results)]
       (is (= total check-passed)))))
-
-(comment
-  (p/get-paths* {} [[[-1]]] {:return-missing? true})
-  (p/get-values* {} [[[-1]]] {:return-missing? true})
-
-  (p/select-keys-at* {} [[[""]]]))

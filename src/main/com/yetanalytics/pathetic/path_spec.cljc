@@ -211,5 +211,5 @@
                                {:type     :invalid-path-spec-element
                                 :path-str path
                                 :element  element}))))
-               (first (pathetic/parse-path path :strict? true)))]
+               (first (pathetic/parse-path path {:strict? true})))]
      (path->spec* root-spec parsed-path hint-data))))

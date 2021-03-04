@@ -132,14 +132,16 @@
          (get-values {"some.key"   42
                       "some"       {"key" "value"}
                       "'some.key'" 43}
-                 "$.'some.key'")))
+                     "$.'some.key'")))
     (is (parse-failed? ;; No consensus, JS result
          (get-values {" a" 1 "a" 2 " a " 3 "" 4} "$. a")))
-    ;; Wildcard
+    ;; Wildcard (treat no children = missing) 
     (is (= ["string" 42 {"key" "value"} [0 1]]
            (get-values ["string" 42 {"key" "value"} [0 1]] "$.*")))
     (is (= [] (get-values [] "$.*")))
     (is (= [] (get-values {} "$.*")))
+    (is (= [nil] (get-values [] "$.*" {:return-missing? true})))
+    (is (= [nil] (get-values {} "$.*" {:return-missing? true})))
     (is (= ["string" 42 {"key" "value"} [0 1]]
            (get-values {"some"   "string"
                         "int"    42

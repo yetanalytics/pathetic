@@ -1,6 +1,5 @@
 (ns com.yetanalytics.pathetic.json-path-test
   (:require [clojure.test :refer [deftest testing is are]]
-            #_[clojure.spec.gen.alpha :as sgen]
             [clojure.test.check]
             [clojure.test.check.properties]
             [clojure.spec.test.alpha :as stest]
@@ -12,7 +11,9 @@
   (testing "Converting parsed paths back to strings"
     (is (= "$[0,1,'foo',0:5:1]..[*]"
            (path->string
-            [[0 1 "foo" {:start 0 :end 5 :step 1}] '.. '*])))))
+            [[0 1 "foo" {:start 0 :end 5 :step 1}] '.. '*])))
+    (is (= "$"
+           (path->string [])))))
 
 (deftest parse-test-0
   (testing "Original JSONPath tests"

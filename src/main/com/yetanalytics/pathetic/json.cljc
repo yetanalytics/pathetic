@@ -29,16 +29,11 @@
 ;; Unlike parsed JSONPath vectors, these represent definite paths (so no
 ;; recursive descent, wildcards, unions, or array splicing).
 
-(s/def ::key
-  (s/or :index (s/int-in 0 1000) ; Nat ints only; upper limit is for generator
-        :key   string?))
+(s/def ::key (s/or :index int? :key string?))
 
-(s/def ::path (s/every ::key
-                       :type vector?))
+(s/def ::path (s/every ::key :kind vector?))
 
-(s/def ::paths (s/every ::key-path
-                        :type vector?
-                        :min-count 1))
+(s/def ::paths (s/every ::path :kind vector? :min-count 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Functions
@@ -46,7 +41,7 @@
 
 (s/fdef recursive-descent
   :args (s/cat :json ::json)
-  :ret  (s/every (s/keys :req-un [::json ::path]) :type vector?))
+  :ret  (s/every (s/keys :req-un [::json ::path]) :kind vector?))
 
 (defn- recursive-descent*
   [json path children]
@@ -66,7 +61,10 @@
   [json] (recursive-descent* json [] []))
 
 (s/fdef jassoc
-  :args (s/cat :coll (s/nilable ::coll) :k ::key :v ::json)
+  :args (s/cat :coll (s/nilable ::coll)
+               :k (s/or :index (s/with-gen int? #(s/gen (s/int-in 0 100)))
+                        :key string?)
+               :v ::json)
   :ret  ::coll)
 
 (defn jassoc
@@ -83,24 +81,26 @@
         (if (map? coll) (assoc coll k v) (assoc {} k v))
         (int? k)
         (let [coll (if (vector? coll) coll [])]
-             (if (< k (count coll))
-               (assoc coll k v)
-               (loop [idx   (count coll)
-                      coll' (transient coll)]
-                 (if (= idx k)
-                   (persistent! (assoc! coll' k v))
-                   (recur (inc idx) (assoc! coll' idx nil))))))))
+          (if (< k (count coll))
+            (assoc coll k v)
+            (loop [idx   (count coll)
+                   coll' (transient coll)]
+              (if (= idx k)
+                (persistent! (assoc! coll' k v))
+                (recur (inc idx) (assoc! coll' idx nil))))))))
 
 (s/fdef jassoc-in
-  :args (s/cat :m (s/nilable ::coll) :ks (s/every ::key) :v ::json)
-  :ret  (s/nilable ::coll))
+  :args (s/cat :m (s/nilable ::coll)
+               :ks (s/every (s/or :index (s/int-in 0 1000) :key string?))
+               :v ::json)
+  :ret  ::json)
 
 (defn jassoc-in
-  "Like assoc-in, but for jassoc. Returns `m` if the keys seq is
+  "Like assoc-in, but for jassoc. Returns `v` if the keys seq is
    empty."
   [m [k & ks] v]
   (if k
     (if ks
       (jassoc m k (jassoc-in (get m k) ks v))
       (jassoc m k v))
-    m))
+    v))

@@ -95,35 +95,35 @@
 
 (deftest jassoc-test
   (testing "jassoc function"
-    (is (= {"0" :a}
-           (jassoc nil "0" :a)))
-    (is (= [:a]
-           (jassoc nil 0 :a)))
-    (is (= [nil :a]
-           (jassoc nil 1 :a)))
-    (is (= [:a nil :c]
-           (jassoc [:a] 2 :c)))
-    (is (= {"foo" :b}
-           (jassoc [:a] "foo" :b)))))
+    (is (= {"0" "a"}
+           (jassoc nil "0" "a")))
+    (is (= ["a"]
+           (jassoc nil 0 "a")))
+    (is (= [nil "a"]
+           (jassoc nil 1 "a")))
+    (is (= ["a" nil :c]
+           (jassoc ["a"] 2 :c)))
+    (is (= {"foo" "b"}
+           (jassoc ["a"] "foo" "b")))))
 
 (deftest jassoc-in-test
   (testing "jassoc-in function"
-    (is (= nil
-           (jassoc-in nil [] :b)))
-    (is (= {}
-           (jassoc-in {} [] :b)))
-    (is (= {"foo" "bar"}
-           (jassoc-in {"foo" "bar"} [] :b)))
-    (is (= {"0" :a}
-           (jassoc-in nil ["0"] :a)))
-    (is (= {"foo" {"bar" :b}}
-           (jassoc-in {"foo" {"bar" :a}} ["foo" "bar"] :b)))
-    (is (= {"foo" {"bar" :a "baz" :b}}
-           (jassoc-in {"foo" {"bar" :a}} ["foo" "baz"] :b)))
-    (is (= {"foo" [:b]}
-           (jassoc-in {"foo" {"bar" :a}} ["foo" 0] :b)))
-    (is (= {"foo" :b}
-           (jassoc-in nil ["foo"] :b)))
+    (is (= "b"
+           (jassoc-in nil [] "b")))
+    (is (= "b"
+           (jassoc-in {} [] "b")))
+    (is (= "b"
+           (jassoc-in {"foo" "bar"} [] "b")))
+    (is (= {"0" "a"}
+           (jassoc-in nil ["0"] "a")))
+    (is (= {"foo" {"bar" "b"}}
+           (jassoc-in {"foo" {"bar" "a"}} ["foo" "bar"] "b")))
+    (is (= {"foo" {"bar" "a" "baz" "b"}}
+           (jassoc-in {"foo" {"bar" "a"}} ["foo" "baz"] "b")))
+    (is (= {"foo" ["b"]}
+           (jassoc-in {"foo" {"bar" "a"}} ["foo" 0] "b")))
+    (is (= {"foo" "b"}
+           (jassoc-in nil ["foo"] "b")))
     (is (= [nil nil [nil nil nil 3]]
            (jassoc-in nil [2 3] 3)))))
 
@@ -134,7 +134,7 @@
                          json/jassoc
                          json/jassoc-in]
                        {:clojure.spec.test.check/opts
-                        {:num-tests #?(:clj 100 :cljs 50)
+                        {:num-tests #?(:clj 500 :cljs 100)
                          :seed (rand-int 2000000000)}})
           {:keys [total check-passed]}
           (stest/summarize-results results)]
