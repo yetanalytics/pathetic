@@ -3,8 +3,9 @@
 ## 0.3.0 - 2021-03-04
 - Refactored API:
   - Renamed `parse-path` to `parse-paths`.
-  - Add starred versions of API functions, for already-parsed paths.
+  - Add starred versions of API functions, which take already-parsed paths as args.
   - Replace keyword args with option maps.
+  - Add additional options to API functions, e.g. `:first?` and `:strict?`.
   - Changed auxillary functions in `json-path.cljc` and `json.cljc`.
 - Applied optimizations to path sequencing algorithm.
 - Add specs and generative tests.
@@ -21,7 +22,7 @@
   - Renamed functions for consistency purposes.
   - Add optional arguments like `:first?` and `:return-missing?`.
 - Increased number of tests:
- - Added tests from Christoph Burgmer's test suite.
+  - Added tests from Christoph Burgmer's test suite.
 
 ## 0.1.2 - 2020-07-08
 - Add JSON spec and other DATASIM-related changes.
