@@ -1,4 +1,6 @@
-# pathetic
+# com.yetanalytics.pathetic
+
+[![CI](https://github.com/yetanalytics/lrs/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/lrs/actions/workflows/main.yml)
 
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
 
@@ -43,7 +45,7 @@ argument; common fields in `opts-map` include:
 
 Each function has two versions: a regular and a starred version. The regular versions accept JSONPath strings, while the starred versions accept parsed paths (which is useful in performance-critical situations). The starred versions do not accept `:first?` or `:strict?` as `opts-map` fields.
 
-### pathetic/parse-paths
+### parse-paths
 
 ```
 Parse a JSONPath string. Each parsed path is a vector with the
@@ -272,7 +274,6 @@ Unlike the previous API functions, this function is designed specifically for xA
 
 ## License
 
-Copyright © 2019-2020 Yet Analytics, Inc.
+Copyright © 2019-2021 Yet Analytics, Inc.
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Distributed under the Apache License version 2.0. 
