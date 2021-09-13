@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.1 - 2021-08-13
+- Pathetic is now OSS!
+
 ## 0.3.0 - 2021-03-04
 - Refactored API:
   - Renamed `parse-path` to `parse-paths`.
