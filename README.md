@@ -1,6 +1,6 @@
 # com.yetanalytics.pathetic
 
-[![CI](https://github.com/yetanalytics/lrs/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/lrs/actions/workflows/main.yml)
+[![CI](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml)
 
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
 
