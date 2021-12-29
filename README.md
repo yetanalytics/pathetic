@@ -4,6 +4,16 @@
 
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
 
+## Installation
+
+Add the following to your `:deps` map in your deps.edn file:
+
+```clojure
+com.yetanalytics/pathetic {:mvn/version "0.3.2"
+                           :exclusions [org.clojure/clojure
+                                        org.clojure/clojurescript]}
+```
+
 ## Data
 
 Any JSON data is accepted, but given our domain, we will largely be working with xAPI Statements. 
