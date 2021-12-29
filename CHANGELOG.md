@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.2 - 2021-12-20
+- Deployed Pathetic to Clojars.
+
 ## 0.3.1 - 2021-08-13
 - Pathetic is now OSS!
 
