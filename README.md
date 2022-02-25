@@ -1,6 +1,6 @@
 # com.yetanalytics.pathetic
 
-[![CI](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml) [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-5e0b73.svg)](CODE_OF_CONDUCT.md)
+[![CI](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml) [![Clojars Project](https://img.shields.io/clojars/v/com.yetanalytics/pathetic.svg)](https://clojars.org/com.yetanalytics/pathetic) [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-5e0b73.svg)](CODE_OF_CONDUCT.md)
 
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
 
