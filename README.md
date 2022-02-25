@@ -9,14 +9,14 @@ Utility Library for working with [JSON Path](https://goessner.net/articles/JsonP
 Add the following to your `:deps` map in your deps.edn file:
 
 ```clojure
-com.yetanalytics/pathetic {:mvn/version "0.3.2"
+com.yetanalytics/pathetic {:mvn/version "0.4.0"
                            :exclusions [org.clojure/clojure
                                         org.clojure/clojurescript]}
 ```
 
 ## Data
 
-Any JSON data is accepted, but given our domain, we will largely be working with xAPI Statements. 
+Any JSON data is accepted, but at Yet Analytics we will largely be working with [xAPI Statements](https://xapi.com/statements-101/), which can be represented as JSON or EDN maps.
 
 The following JSON example was excised from the xAPI Statement
 `./resources/pathetic/data/long.json`
@@ -48,7 +48,7 @@ The core functions of the Pathetic API are found in the namespace `com.yetanalyt
 argument; common fields in `opts-map` include:
 
 - `:first?` - Parse or apply only the first path, if the JSONPath string contains multiple paths separated by `|`. Default false.
-- `:strict?` - Disallows recursive descent, array slicing, and negative indices. This makes JSONPath strings conform to xAPI Profile spec requirements (listed at the bottom of [this section](https://github.com/adlnet/xapi-profiles/blob/master/xapi-profiles-structure.md#statement-template-rules)). Default false.
+- `:strict?` - Disallows recursive descent, array slicing, and negative indices. This makes JSONPath strings conform to [xAPI Profile](https://adlnet.github.io/xapi-profiles/xapi-profiles-about.html) spec requirements (listed at the bottom of [this section](https://github.com/adlnet/xapi-profiles/blob/master/xapi-profiles-structure.md#statement-template-rules)). Default false.
 - `:return-missing?` - Return paths and/or values at locations not found in the JSONPath object. Missing values are returned as `nil`. Default false.
 - `:return-duplicates?` - Return duplicate values from a JSONPath object. Default true.
 - `:prune-empty?` - Remove empty collections and values from a JSONPath object after having values excised. Default false.
@@ -261,26 +261,6 @@ Stringify a parsed path back into a JSONPath string.
 (path->string [* ["books"]])
 => "$[*]['books']"
 ```
-
-### path-spec/path->spec
-
-```
-Given a root spec and a parsed path into it, return the spec for
-that path, or nil if it is not possible. Accepts optional hint
-data (i.e. an xAPI Statement) to dispatch multi-specs
-```
-
-Unlike the previous API functions, this function is designed specifically for xAPI Statements.
-
-```clojure
-(path->spec ::xapi-schema/activity
-            "$.definition.name.en-US")
-=> ::xapi-schema/language-map-text
-
-(path->spec ::xapi-schema/statement
-            "$.object.definition.correctResponsesPattern[0]")
-=> string?
-````
 
 ## License
 
