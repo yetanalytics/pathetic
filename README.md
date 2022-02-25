@@ -19,7 +19,7 @@ com.yetanalytics/pathetic {:mvn/version "0.4.0"
 Any JSON data is accepted, but at Yet Analytics we will largely be working with [xAPI Statements](https://xapi.com/statements-101/), which can be represented as JSON or EDN maps.
 
 The following JSON example was excised from the xAPI Statement
-`./resources/pathetic/data/long.json`
+ at `dev-resources/pathetic/data/long.json`
 
 ``` json
 {
