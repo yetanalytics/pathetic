@@ -1,6 +1,6 @@
 # com.yetanalytics.pathetic
 
-[![CI](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml)
+[![CI](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml) [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-5e0b73.svg)](CODE_OF_CONDUCT.md)
 
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
 
@@ -184,7 +184,6 @@ Supports :first?, :strict?, and :prune-empty? in `opts-map`.
 (= (dissoc stmt "id")
    (excise stmt "$.id"))
 ```
-
 
 ### apply-values
 
