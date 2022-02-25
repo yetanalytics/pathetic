@@ -1,4 +1,4 @@
-{:paths ["resources" "src/main"]
+{:paths ["src/main"]
  :deps {org.clojure/clojure          {:mvn/version "1.10.2"}
         org.clojure/clojurescript    {:mvn/version "1.10.764"
                                       :exclusions  [org.clojure/data.json]}
@@ -9,7 +9,7 @@
  {:dev
   {:extra-deps {cider/piggieback {:mvn/version "0.5.2"}}}
   :test
-  {:extra-paths ["src/test"]
+  {:extra-paths ["dev-resources" "src/test"]
    :extra-deps  {org.clojure/test.check {:mvn/version "1.1.0"}}}
   :runner-clj
   {:extra-deps {com.cognitect/test-runner
