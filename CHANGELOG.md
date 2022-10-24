@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.4.1 - 2022-10-24
+- Update GitHub CI and CD to remove deprecation warnings.
+
 ## 0.4.0 - 2022-02-25
 - Remove `path-spec` namespace and associated code.
 
