@@ -11,8 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Setup CI Environment
-        uses: yetanalytics/actions/setup-env@v0
+        uses: yetanalytics/actions/setup-env@v0.0.4
 
       - name: Run Tests
         run: make ${{ matrix.target }}
