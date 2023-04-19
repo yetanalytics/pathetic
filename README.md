@@ -265,6 +265,6 @@ Stringify a parsed path back into a JSONPath string.
 
 ## License
 
-Copyright © 2019-2022 Yet Analytics, Inc.
+Copyright © 2019-2023 Yet Analytics, Inc.
 
 Distributed under the Apache License version 2.0. 
