@@ -1,5 +1,7 @@
 # pathetic
 
+<img src="logo/logo.svg" alt="Pathetic Logo" />
+
 [![CI](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml/badge.svg)](https://github.com/yetanalytics/pathetic/actions/workflows/main.yml) [![Clojars Project](https://img.shields.io/clojars/v/com.yetanalytics/pathetic.svg)](https://clojars.org/com.yetanalytics/pathetic) [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-5e0b73.svg)](CODE_OF_CONDUCT.md)
 
 Utility Library for working with [JSON Path](https://goessner.net/articles/JsonPath/).
@@ -263,6 +265,6 @@ Stringify a parsed path back into a JSONPath string.
 
 ## License
 
-Copyright © 2019-2022 Yet Analytics, Inc.
+Copyright © 2019-2023 Yet Analytics, Inc.
 
 Distributed under the Apache License version 2.0. 
