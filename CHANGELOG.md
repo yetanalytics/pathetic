@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.4.2 - 2023-05-29
+- Update the `apply-value` function to support the following optional args:
+  - `:multi-value?`: If provided, then `value` must be a collection of values that will be applied in order. Returns the modified `json` once `value` or the available path seqs runs out.
+  - `:wildcard-append?`: Dictates if wildcard values should be appended to the end of existing seqs. Default `true`.
+  - `:wildcard-limit`: Dictates how many wildcard paths should be generated. Default `1`.
 ## 0.4.1 - 2022-10-24
 - Update GitHub CI and CD to remove deprecation warnings.
 
