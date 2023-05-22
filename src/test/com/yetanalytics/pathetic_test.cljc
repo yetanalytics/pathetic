@@ -429,14 +429,6 @@
            (p/excise long-statement
                      "$.context.contextActivities.grouping[*]")))))
 
-(comment
-  (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]}
-                 "$.universe.*"
-                 [{"baz" 2} {"qux" 3}]
-                 {:multi-value? true
-                  :wildcard-append? false
-                  :wildcard-limit 3}))
-
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
     (is (= {"foo" 0}
