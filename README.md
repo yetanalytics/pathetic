@@ -106,6 +106,44 @@ Supports :first?, :strict?, and :return-missing? in `opts-map`.
 => [["context" "contextActivities" "grouping"]]
 ```
 
+### speculate-paths
+
+```
+Given `json` and a JSONPath string `paths`, return a vector of
+   definite key paths, just like `get-paths`. However, unlike `get-paths`,
+   paths will be enumerated even if the corresponding value does not exist
+   in `json` on that path; in other words, it speculates what paths would
+   exist if they are applied. If the string contains multiple JSONPaths, we
+   return the key paths for all strings.
+   
+   The following `opts-map` fields are supported:
+     :first?           Only apply the first \"|\"-separated path.
+     :strict?          Always set to `true`.
+     :wildcard-append? Dictates if wildcard values should be appended to
+                       the end of existing seqs. Default `true`.
+     :wildcard-limit   Dictates how many wildcard paths should be generated.
+                       Default `1`.
+```
+
+```clojure
+(speculate-paths stmt "$.context.contextActivities.grouping[*]")
+=> [["context" "contextActivities" "grouping" 0]]
+
+(speculate-paths stmt "$.context.contextActivities.category[*].id")
+=> [["context" "contextActivities" "category" 1 "id"]]
+
+(speculate-paths stmt
+                 "$.context.contextActivities.category[*].id" 
+                 {:wildcard-limit 2})
+=> [["context" "contextActivities" "category" 1 "id"]
+    ["context" "contextActivities" "category" 2 "id"]]
+
+(speculate-paths stmt
+                 "$.context.contextActivities.category[*].id" 
+                 {:wildcard-append? false})
+=> [["context" "contextActivities" "category" 0 "id"]]
+```
+
 ### get-values
 
 ```
