@@ -470,7 +470,23 @@
                (p/apply-value "$.context.contextActivities.category[*].id"
                               "http://www.example.com/meetings/categories/brainstorm_sesh")
                (p/apply-value "$.context.contextActivities.category[*].id"
-                              "http://www.example.com/meetings/categories/whiteboard_sesh"))))))
+                              "http://www.example.com/meetings/categories/whiteboard_sesh")))))
+  (testing "Applying and updating multiple values"
+    (are [expected path]
+         (= expected
+            (p/apply-value {"foo" []} path [1 2] {:multi-value? true}))
+      {"foo" [1 2]}     "$.foo[0,1]"
+      {"foo" [nil 1 2]} "$.foo[1,2]"
+      {"foo" [1 nil 2]} "$.foo[0,2]"
+      {"foo" [1]}       "$.foo[0]"
+      {"foo" [nil 1]}   "$.foo[1]"
+      {"foo" 1 "bar" 2} "$['foo','bar']"
+      {"foo" [1]}       "$.foo[*]" ; FIXME
+      [1 2]             "$[0,1]"
+      1                 "$"
+      {"foo" 2}         "$ | $.foo"
+      {"foo" [2]}       "$ | $.foo[0,1]" ; FIXME
+      )))
 
 (deftest gen-tests
   (testing "Generative tests for pathetic"

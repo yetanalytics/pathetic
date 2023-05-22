@@ -270,7 +270,7 @@
           (reduce (fn [acc m] (merge acc m)) {})))))
 
 (defn get-path-value-map
-  "Given `json` nd a JSONPath string `paths`, return a map associating
+  "Given `json` and a JSONPath string `paths`, return a map associating
    JSON paths to JSON values. Does not return duplicates.
    
    The following `opts-map` fields are supported:
@@ -454,7 +454,7 @@
    
    The following `opts-map` fields are supported:
      :first?       Apply only the first \"|\"-separated path. Default false.
-     :strict?      If provided, always overrides to true.
+     :strict?      Always overrides to true regardless of value provided.
      :multi-value? If provided, then `value` must be a collection of
                    values that will be applied in order, e.g. for an
                    array specified by `[0,1]` in the path, then the first
@@ -462,6 +462,7 @@
                    potentially-infinite lazy seqs. Returns the modified
                    `json` once `value` or the available path seqs runs out."
   ([json paths value]
-   (apply-value* json (parse-paths paths {:strict? true}) value))
+   (apply-value json paths value {}))
   ([json paths value opts-map]
-   (apply-value* json (parse-paths paths (assoc opts-map :strict? true)) value)))
+   (let [opts-map* (assoc opts-map :strict? true)]
+     (apply-value* json (parse-paths paths opts-map*) value opts-map*))))
