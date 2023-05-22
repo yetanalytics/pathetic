@@ -210,12 +210,12 @@ The following caveats apply:
 
 Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden to `true`. Also accepts the following args:
 
-:multi-value?      If provided, then `value` must be a collection of
-                   values that will be applied in order, e.g. for an
-                   array specified by `[0,1]` in the path, then the first
-                   and second elements of `value` will be applied. Returns
-                   the modified `json` once `value` or the available path
-                   seqs runs out.
+:multi-value?     If provided, then `value` must be a collection of
+                  values that will be applied in order, e.g. for an
+                  array specified by `[0,1]` in the path, then the first
+                  and second elements of `value` will be applied. Returns
+                  the modified `json` once `value` or the available path
+                  seqs runs out.
 :wildcard-append? Dictates if wildcard values should be appended to
                   the end of existing seqs. Default `true`.
 :wildcard-limit   Dictates how many wildcard paths should be generated   
