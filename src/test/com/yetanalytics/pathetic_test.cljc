@@ -429,6 +429,14 @@
            (p/excise long-statement
                      "$.context.contextActivities.grouping[*]")))))
 
+(comment
+  (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]}
+                 "$.universe.*"
+                 [{"baz" 2} {"qux" 3}]
+                 {:multi-value? true
+                  :wildcard-append? false
+                  :wildcard-limit 3}))
+
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
     (is (= {"foo" 0}
@@ -481,12 +489,37 @@
       {"foo" [1]}       "$.foo[0]"
       {"foo" [nil 1]}   "$.foo[1]"
       {"foo" 1 "bar" 2} "$['foo','bar']"
-      {"foo" [1]}       "$.foo[*]" ; FIXME
+      {"foo" [1]}       "$.foo[*]"
       [1 2]             "$[0,1]"
       1                 "$"
       {"foo" 2}         "$ | $.foo"
-      {"foo" [2]}       "$ | $.foo[0,1]" ; FIXME
-      )))
+      {"foo" [2]}       "$ | $.foo[0,1]"))
+  (testing "Applying w/ different values of `:wildcard-append?` and `:wildcard-limit`"
+    (is (= {"foo" [1]}
+           (p/apply-value {"foo" []} "$.foo.*" [1 2] {:multi-value? true})))
+    (is (= {"foo" [1 2]}
+           (p/apply-value {"foo" []} "$.foo.*" [1 2] {:multi-value? true
+                                                      :wildcard-limit 2})))
+    (is (= {"foo" [1 2]}
+           (p/apply-value {"foo" []} "$.foo.*" [1 2] {:multi-value? true
+                                                      :wildcard-limit 3})))
+    (is (= {"foo" [0 1]}
+           (p/apply-value {"foo" [0]} "$.foo.*" [1] {:multi-value? true
+                                                     :wildcard-append? true})))
+    (is (= {"foo" [1]}
+           (p/apply-value {"foo" [0]} "$.foo.*" [1] {:multi-value? true
+                                                     :wildcard-append? false})))
+    (is (= {"foo" [1]}
+           (p/apply-value {"foo" [0]} "$.foo.*" [1 2] {:multi-value? true
+                                                       :wildcard-append? false})))
+    (is (= {"foo" [0 1 2]}
+           (p/apply-value {"foo" [0]} "$.foo.*" [1 2] {:multi-value? true
+                                                       :wildcard-append? true
+                                                       :wildcard-limit 2})))
+    (is (= {"foo" [1 2]}
+           (p/apply-value {"foo" [0]} "$.foo.*" [1 2] {:multi-value? true
+                                                       :wildcard-append? false
+                                                       :wildcard-limit 2})))))
 
 (deftest gen-tests
   (testing "Generative tests for pathetic"

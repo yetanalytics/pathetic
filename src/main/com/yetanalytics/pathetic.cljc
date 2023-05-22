@@ -398,7 +398,9 @@
   :args (s/cat :json ::json/json
                :paths ::json-path/strict-paths
                :value ::json/json
-               :opts-map (s/? (s/keys :opt-un [::multi-value?])))
+               :opts-map (s/? (s/keys :opt-un [::multi-value?
+                                               ::wildcard-append?
+                                               ::wildcard-limit])))
   :ret ::json/json)
 
 (defn apply-value*
@@ -411,18 +413,29 @@
                    array specified by `[0,1]` in the path, then the first
                    and second elements of `value` will be applied. Supports
                    potentially-infinite lazy seqs. Returns the modified
-                   `json` once `value` or the available path seqs runs out."
+                   `json` once `value` or the available path seqs runs out.
+     :wildcard-append? Dictates if wildcard values should be appended to
+                       the end of existing seqs. Default `true`.
+     :wildcard-limit`, Dicates how many wildcard paths should be generated.
+                       Default `1`."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
    (let [;; Opts map destructuring
-         {:keys [multi-value?] :or {multi-value? false}}
+         {:keys [multi-value?
+                 wildcard-append?
+                 wildcard-limit]
+          :or {multi-value?     false
+               wildcard-append? true
+               wildcard-limit   1}}
          opts-map
          ;; Paths and values
-         paths*    (->> paths
-                        (map (partial json-path/speculative-path-seqs json))
-                        (apply concat)
-                        (mapv :path))
+         path-fn   (fn [path]
+                     (json-path/speculative-path-seqs
+                      json path
+                      :wildcard-append? wildcard-append?
+                      :wildcard-limit wildcard-limit))
+         paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (if multi-value?
                      (->> (interleave paths* value) ; [p v ...] => [[p v] ...]
                           (apply assoc {})
@@ -460,7 +473,11 @@
                    array specified by `[0,1]` in the path, then the first
                    and second elements of `value` will be applied. Supports
                    potentially-infinite lazy seqs. Returns the modified
-                   `json` once `value` or the available path seqs runs out."
+                   `json` once `value` or the available path seqs runs out.
+     :wildcard-append? Dictates if wildcard values should be appended to
+                       the end of existing seqs. Default `true`.
+     :wildcard-limit   Dictates how many wildcard paths should be generated.
+                       Default `1`."
   ([json paths value]
    (apply-value json paths value {}))
   ([json paths value opts-map]

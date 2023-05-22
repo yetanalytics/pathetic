@@ -513,10 +513,17 @@
                  :kind vector?))
 
 (defn speculative-path-seqs
-  "Similar to path-seqs, except it continues traversing the path even if
+  "Similar to `path-seqs`, except it continues traversing the path even if
    the location in the JSON data is missing or incompatible. Returns the
-   same fields as path-seqs except for :fail."
-  [json-obj json-path]
+   same fields as path-seqs except for `:fail`.
+   
+   Accepts two kwargs: `wildcard-append?`, which dictates if wildcard values
+   should be appended to the end of existing seqs (default `true`), and
+   `wildcard-limit`, dictating how many wildcard paths should be generated
+   (default `1`)."
+  [json-obj json-path & {:keys [wildcard-append? wildcard-limit]
+                         :or {wildcard-append? true
+                              wildcard-limit   1}}]
   (loop [worklist (init-queue {:json json-obj
                                :rest json-path
                                :path []})
@@ -543,8 +550,20 @@
             (recur worklist' reslist))
           ;; Wildcard: append to end
           (= '* element)
-          (let [worklist'
-                (conj (pop worklist)
+          (let [idx-start (if (and wildcard-append? (coll? jsn))
+                            (count jsn)
+                            0)
+                idx-end   (+ idx-start wildcard-limit)
+                worklist'
+                (reduce
+                 (fn [worklist idx]
+                   (conj worklist
+                         {:json nil ; current val doesn't matter regardless if we override or append
+                          :rest (rest rst)
+                          :path (conj pth (if (map? jsn) (str idx) idx))}))
+                 (pop worklist)
+                 (range idx-start idx-end))
+                #_(conj (pop worklist)
                       {:json nil
                        :rest (rest rst)
                        :path (conj pth (cond
