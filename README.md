@@ -187,7 +187,7 @@ Supports :first?, :strict?, and :prune-empty? in `opts-map`.
    (excise stmt "$.id"))
 ```
 
-### apply-values
+### apply-value
 
 ```
 Given `json`, a JSONPath string `paths`, and the JSON data
@@ -208,8 +208,7 @@ The following caveats apply:
 - Recursive descent, array slicing, and negative array indices
   are disallowed (as per strict mode).
 
-Supports :first? in `opts-map`. :strict? is always overridden to
-`true`.
+Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden to `true`.
 ```
 
 ``` clojure

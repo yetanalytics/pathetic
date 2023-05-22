@@ -14,6 +14,7 @@
 (s/def ::return-missing? boolean?)
 (s/def ::return-duplicates? boolean?)
 (s/def ::prune-empty? boolean?)
+(s/def ::multi-value? boolean?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper functions
@@ -391,27 +392,40 @@
   ([json paths opts-map]
    (excise* json (parse-paths paths opts-map) opts-map)))
 
-;; Changed from "apply-values" to only accept one value
+;; apply value
 
 (s/fdef apply-value*
   :args (s/cat :json ::json/json
                :paths ::json-path/strict-paths
-               :value ::json/json)
+               :value ::json/json
+               :opts-map (s/? (s/keys :opt-un [::multi-value?])))
   :ret ::json/json)
 
 (defn apply-value*
   "Like `apply-value` except that the `paths` argument is a vector of
    already-parsed JSONPaths.
    
-   Does not support an `opts-map` argument."
-  [json paths value]
-  (let [paths' (->> paths
-                    (map (partial json-path/speculative-path-seqs json))
-                    (apply concat)
-                    (mapv :path))]
-    (reduce (fn [json path] (json/jassoc-in json path value))
-            json
-            paths')))
+   The following `opts-map` fields are supported:
+     :multi-value? If provided, then `value` must be a collection of
+                   values that will be applied in order, e.g. for an
+                   array specified by `[0,1]` in the path, then the first
+                   and second elements of `value` will be applied. Supports
+                   potentially-infinite lazy seqs. Throws an exception if
+                   `value` runs out."
+  ([json paths value]
+   (apply-value* json paths value {}))
+  ([json paths value opts-map]
+   (let [;; Opts map destructuring
+         {:keys [multi-value?] :or {multi-value? false}}
+         opts-map
+         ;; Paths
+         paths' (->> paths
+                     (map (partial json-path/speculative-path-seqs json))
+                     (apply concat)
+                     (mapv :path))]
+     (reduce (fn [json path] (json/jassoc-in json path value))
+             json
+             paths'))))
 
 (defn apply-value
   "Given `json`, a JSONPath string `paths`, and the JSON data
@@ -433,9 +447,14 @@
      are disallowed (as per strict mode).
    
    The following `opts-map` fields are supported:
-     :first?   Apply only the first \"|\"-separated path. Default
-               false.
-     :strict?  If provided, always overrides to true."
+     :first?       Apply only the first \"|\"-separated path. Default false.
+     :strict?      If provided, always overrides to true.
+     :multi-value? If provided, then `value` must be a collection of
+                   values that will be applied in order, e.g. for an
+                   array specified by `[0,1]` in the path, then the first
+                   and second elements of `value` will be applied. Supports
+                   potentially-infinite lazy seqs. Throws an exception if
+                   `value` runs out."
   ([json paths value]
    (apply-value* json (parse-paths paths {:strict? true}) value))
   ([json paths value opts-map]
