@@ -410,22 +410,28 @@
                    values that will be applied in order, e.g. for an
                    array specified by `[0,1]` in the path, then the first
                    and second elements of `value` will be applied. Supports
-                   potentially-infinite lazy seqs. Throws an exception if
-                   `value` runs out."
+                   potentially-infinite lazy seqs. Returns the modified
+                   `json` once `value` or the available path seqs runs out."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
    (let [;; Opts map destructuring
          {:keys [multi-value?] :or {multi-value? false}}
          opts-map
-         ;; Paths
-         paths' (->> paths
-                     (map (partial json-path/speculative-path-seqs json))
-                     (apply concat)
-                     (mapv :path))]
-     (reduce (fn [json path] (json/jassoc-in json path value))
+         ;; Paths and values
+         paths*    (->> paths
+                        (map (partial json-path/speculative-path-seqs json))
+                        (apply concat)
+                        (mapv :path))
+         path-vals (if multi-value?
+                     (->> (interleave paths* value) ; [p v ...] => [[p v] ...]
+                          (apply assoc {})
+                          (into []))
+                     (->> paths*
+                          (mapv (fn [path] [path value]))))]
+     (reduce (fn [json [path v]] (json/jassoc-in json path v))
              json
-             paths'))))
+             path-vals))))
 
 (defn apply-value
   "Given `json`, a JSONPath string `paths`, and the JSON data
@@ -453,8 +459,8 @@
                    values that will be applied in order, e.g. for an
                    array specified by `[0,1]` in the path, then the first
                    and second elements of `value` will be applied. Supports
-                   potentially-infinite lazy seqs. Throws an exception if
-                   `value` runs out."
+                   potentially-infinite lazy seqs. Returns the modified
+                   `json` once `value` or the available path seqs runs out."
   ([json paths value]
    (apply-value* json (parse-paths paths {:strict? true}) value))
   ([json paths value opts-map]
