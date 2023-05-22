@@ -521,6 +521,14 @@
   (testing "Applying and updating multiple values"
     (is (= {"foo" []} ; unchanged
            (p/apply-value {"foo" []} "$.foo.*" [] {:multi-value? true})))
+    (is (= {"foo" []}
+           (p/apply-value {"foo" []} "$.foo[0]" [] {:multi-value? true})))
+    (is (= {"foo" []}
+           (p/apply-value {"foo" []} "$.foo[0,1]" [] {:multi-value? true})))
+    (is (= {"foo" [1]}
+           (p/apply-value {"foo" []} "$.foo[0]" [1] {:multi-value? true})))
+    (is (= {"foo" [1]}
+           (p/apply-value {"foo" []} "$.foo[0,1]" [1] {:multi-value? true})))
     (are [expected path]
          (= expected
             (p/apply-value {"foo" []} path [1 2] {:multi-value? true}))
