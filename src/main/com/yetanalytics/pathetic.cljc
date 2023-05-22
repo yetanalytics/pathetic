@@ -501,11 +501,8 @@
                       :wildcard-limit wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (if multi-value?
-                     (->> (interleave paths* value) ; [p v ...] => [[p v] ...]
-                          (apply assoc {})
-                          (into []))
-                     (->> paths*
-                          (mapv (fn [path] [path value]))))]
+                     (mapv (fn [p va] [p va]) paths* value)
+                     (mapv (fn [p] [p value]) paths*))]
      (reduce (fn [json [path v]] (json/jassoc-in json path v))
              json
              path-vals))))

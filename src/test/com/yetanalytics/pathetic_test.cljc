@@ -519,6 +519,8 @@
                (p/apply-value "$.context.contextActivities.category[*].id"
                               "http://www.example.com/meetings/categories/whiteboard_sesh")))))
   (testing "Applying and updating multiple values"
+    (is (= {"foo" []} ; unchanged
+           (p/apply-value {"foo" []} "$.foo.*" [] {:multi-value? true})))
     (are [expected path]
          (= expected
             (p/apply-value {"foo" []} path [1 2] {:multi-value? true}))
