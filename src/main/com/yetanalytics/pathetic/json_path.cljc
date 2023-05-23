@@ -562,14 +562,7 @@
                           :rest (rest rst)
                           :path (conj pth (if (map? jsn) (str idx) idx))}))
                  (pop worklist)
-                 (range idx-start idx-end))
-                #_(conj (pop worklist)
-                      {:json nil
-                       :rest (rest rst)
-                       :path (conj pth (cond
-                                         (vector? jsn) (-> jsn count)
-                                         (map? jsn) (-> jsn count str)
-                                         :else 0))})]
+                 (range idx-start idx-end))]
             (recur worklist' reslist))
           :else ;; Includes recursive descent
           (throw (ex-info "Illegal path element"
