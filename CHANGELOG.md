@@ -5,6 +5,8 @@
   - `:multi-value?`: If provided, then `value` must be a collection of values that will be applied in order. Returns the modified `json` once `value` or the available path seqs runs out.
   - `:wildcard-append?`: Dictates if wildcard values should be appended to the end of existing seqs. Default `true`.
   - `:wildcard-limit`: Dictates how many wildcard paths should be generated. Default `1`.
+- Add a `speculate-paths` function that acts like `get-paths` but is not stopped by missing values. Also accepts `:wildcard-append?` and `:wildcard-limit` opt args.
+
 ## 0.4.1 - 2022-10-24
 - Update GitHub CI and CD to remove deprecation warnings.
 
