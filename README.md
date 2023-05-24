@@ -110,19 +110,18 @@ Supports :first?, :strict?, and :return-missing? in `opts-map`.
 
 ```
 Given `json` and a JSONPath string `paths`, return a vector of
-   definite key paths, just like `get-paths`. However, unlike `get-paths`,
-   paths will be enumerated even if the corresponding value does not exist
-   in `json` on that path; in other words, it speculates what paths would
-   exist if they are applied. If the string contains multiple JSONPaths, we
-   return the key paths for all strings.
-   
-   The following `opts-map` fields are supported:
-     :first?           Only apply the first \"|\"-separated path.
-     :strict?          Always set to `true`.
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs. Default `true`.
-     :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       Default `1`.
+definite key paths, just like `get-paths`. However, unlike `get-paths`,
+paths will be enumerated even if the corresponding value does not exist
+in `json` on that path; in other words, it speculates what paths would
+exist if they are applied. If the string contains multiple JSONPaths, we
+return the key paths for all strings.
+
+Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden to `true`. Also accepts the following args:
+
+:wildcard-append? Dictates if wildcard values should be appended to
+                  the end of existing seqs. Default `true`.
+:wildcard-limit   Dictates how many wildcard paths should be generated.
+                  Default `1`.
 ```
 
 ```clojure
