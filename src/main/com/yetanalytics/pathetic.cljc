@@ -2,7 +2,8 @@
   (:require [clojure.spec.alpha                  :as s]
             [clojure.spec.gen.alpha              :as sgen]
             [com.yetanalytics.pathetic.json      :as json]
-            [com.yetanalytics.pathetic.json-path :as json-path]))
+            [com.yetanalytics.pathetic.json-path :as json-path]
+            [com.yetanalytics.pathetic.parse     :as parse]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs
@@ -28,7 +29,7 @@
 (defn- assert-valid-parse
   "Throw exception if result of json-path/parse is error data."
   [res]
-  (when (json-path/is-parse-failure? res)
+  (when (parse/is-parse-failure? res)
     (throw (ex-info "Cannot parse JSONPath string"
                     (assoc res :type ::invalid-path)))))
 
@@ -37,7 +38,7 @@
    paths fails strict mode."
   [strict? paths]
   (when strict?
-    (when-let [strict-elem (some json-path/test-strict-path paths)]
+    (when-let [strict-elem (some parse/test-strict-path paths)]
       (throw (ex-info "Illegal path element in strict mode"
                       {:type    ::invalid-strict-path
                        :paths   paths
@@ -148,7 +149,7 @@
           :or   {first? false strict? false}}
          opts-map
          res
-         (json-path/parse paths)]
+         (parse/parse paths)]
      (assert-valid-parse res)
      (assert-strict-valid strict? res)
      (if first? (subvec res 0 1) res))))
