@@ -44,9 +44,8 @@
                        :element strict-elem})))))
 
 (defn- assert-multi-value
-  [multi-value? value]
-  (when (and multi-value?
-             (not (coll? value)))
+  [value]
+  (when (not (coll? value))
     (throw (ex-info "Provided value for multi-values mode is not a coll"
                     {:type  ::invalid-multi-value
                      :value value}))))
@@ -479,17 +478,11 @@
 ;; Apply Value(s) ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/fdef apply-value*
-  :args (s/and
-         (s/cat :json ::json/json
-                :paths ::json-path/strict-paths
-                :value ::json/json
-                :opts-map (s/? (s/keys :opt-un [::multi-value?
-                                                ::wildcard-append?
-                                                ::wildcard-limit])))
-         (fn [{value :value {:keys [multi-value?]} :opts-map}]
-           (or (not multi-value?)
-               (and (= :coll (first value))
-                    (coll? (second value))))))
+  :args (s/cat :json ::json/json
+               :paths ::json-path/strict-paths
+               :value ::json/json
+               :opts-map (s/? (s/keys :opt-un [::wildcard-append?
+                                               ::wildcard-limit])))
   :ret ::json/json)
 
 (defn apply-value*
@@ -497,12 +490,6 @@
    already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :multi-value?     If provided, then `value` must be a collection of
-                       values that will be applied in order, e.g. for an
-                       array specified by `[0,1]` in the path, then the first
-                       and second elements of `value` will be applied. Returns
-                       the modified `json` once `value` or the available path
-                       seqs runs out.
      :wildcard-append? Dictates if wildcard values should be appended to
                        the end of existing seqs instead of overwriting existing
                        values. Default `false`.
@@ -514,20 +501,13 @@
    (apply-value* json paths value {}))
   ([json paths value opts-map]
    (let [;; Opts map destructuring
-         {:keys [multi-value?
-                 wildcard-append?
+         {:keys [wildcard-append?
                  wildcard-limit]
-          :or {multi-value?     false
-               wildcard-append? false}}
+          :or {wildcard-append? false}}
          opts-map
-         _
-         (assert-multi-value multi-value? value)
          wildcard-limit
          (or wildcard-limit
-             (cond
-               multi-value?     (count value)
-               wildcard-append? 1
-               :else            nil))
+             (and wildcard-append? 1))
          ;; Paths and values
          path-fn   (fn [path]
                      (json-path/speculative-path-seqs json
@@ -535,16 +515,14 @@
                                                       wildcard-append?
                                                       wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
-         path-vals (if multi-value?
-                     (mapv (fn [p va] [p va]) paths* value)
-                     (mapv (fn [p] [p value]) paths*))]
+         path-vals (mapv (fn [p] [p value]) paths*)]
      (reduce (fn [json [path v]] (json/jassoc-in json path v))
              json
              path-vals))))
 
 (defn apply-value
   "Given `json`, a JSONPath string `paths`, and the JSON data
-   `value`, apply `value` to the location given by `paths` If
+   `value`, apply `value` to the location given by `paths`. If
    the location exists, update the pre-existing value. Otherwise,
    create the necessary data structures needed to contain `value`.
 
@@ -552,24 +530,19 @@
    - If only the root \"$\" is provided, `json` is overwritten in
      its entirety.
    - If an array index skips over any vector entries, those skipped
-     entries will be assigned nil.
+     entries will be assigned `nil`.
    - If a path contains a wildcard and the location up to that
-     point does not exist, create a new vector.
-   - If a path contains a wildcard and the location is a collection,
-     append it to the coll. In the case of maps, the key is its
-     current size, e.g. {\"2\" : \"foo\"}.
+     point does not exist or is a scalar, create a new vector.
+   - If a path contains a wildcard, the location is a collection,
+     and `wildcard-append?` is `true, append it to the coll.
+     In the case of maps, the key is its current size, e.g.
+     `{\"2\" : \"foo\"}`.
    - Recursive descent, array slicing, and negative array indices
      are disallowed (as per strict mode).
    
    The following `opts-map` fields are supported:
      :first?           Apply only the first \"|\"-separated path. Default false.
      :strict?          Always overrides to true regardless of value provided.
-     :multi-value?     If provided, then `value` must be a collection of
-                       values that will be applied in order, e.g. for an
-                       array specified by `[0,1]` in the path, then the first
-                       and second elements of `value` will be applied. Returns
-                       the modified `json` once `value` or the available path
-                       seqs runs out.
      :wildcard-append? Dictates if wildcard values should be appended to
                        the end of existing seqs instead of overwriting existing
                        values. Default `false`.
@@ -582,3 +555,87 @@
   ([json paths value opts-map]
    (let [opts-map* (assoc opts-map :strict? true)]
      (apply-value* json (parse-paths paths opts-map*) value opts-map*))))
+
+(s/fdef apply-multi-value*
+  :args (s/cat :json ::json/json
+               :paths ::json-path/strict-paths
+               :value (s/coll-of ::json/json :gen-max 5)
+               :opts-map (s/? (s/keys :opt-un [::wildcard-append?
+                                               ::wildcard-limit])))
+  :ret ::json/json)
+
+(defn apply-multi-value*
+  "Like `apply-multi-value` except that the `paths` argument is a vector of
+   already-parsed JSONPaths.
+   
+   The following `opts-map` fields are supported:
+     :wildcard-append? Dictates if wildcard values should be appended to
+                       the end of existing seqs instead of overwriting existing
+                       values. Default `false`.
+     :wildcard-limit   Dictates the max number of values to applied per coll.
+                       If `multi-value?`, defaults to the number of values.
+                       In overwrite mode, defaults to the length of each coll.
+                       In append mode, defaults to 1."
+  ([json paths value]
+   (apply-value* json paths value {}))
+  ([json paths value opts-map]
+   (let [;; Opts map destructuring
+         {:keys [wildcard-append?
+                 wildcard-limit]
+          :or {wildcard-append? false}}
+         opts-map
+         _ 
+         (assert-multi-value value)
+         wildcard-limit
+         (or wildcard-limit (count value))
+         ;; Paths and values
+         path-fn   (fn [path]
+                     (json-path/speculative-path-seqs json
+                                                      path
+                                                      wildcard-append?
+                                                      wildcard-limit))
+         paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
+         path-vals (mapv (fn [p va] [p va]) paths* value)]
+     (reduce (fn [json [path v]] (json/jassoc-in json path v))
+             json
+             path-vals))))
+
+(defn apply-multi-value
+  "Given `json`, a JSONPath string `paths`, and a collection of JSON data
+   `value`, apply `value` to the location given by `paths` in the order
+   they are given. If the location exists, update the pre-existing value.
+   Otherwise, create the necessary data structures needed to contain `value`.
+
+   For example, an array specified by `[0,1]` in the path, then the first
+   and second elements of `value` will be applied. Returns the modified
+   `json` once `value` or the available path seqs runs out.
+
+   The same caveats as `apply-value` apply here as well:
+   - If only the root \"$\" is provided, `json` is overwritten in
+     its entirety.
+   - If an array index skips over any vector entries, those skipped
+     entries will be assigned `nil`.
+   - If a path contains a wildcard and the location up to that
+     point does not exist or is a scalar, create a new vector.
+   - If a path contains a wildcard, the location is a collection,
+     and `wildcard-append?` is `true, append it to the coll.
+     In the case of maps, the key is its current size, e.g.
+     `{\"2\" : \"foo\"}`.
+   - Recursive descent, array slicing, and negative array indices
+     are disallowed (as per strict mode).
+   
+   The following `opts-map` fields are supported:
+     :first?           Apply only the first \"|\"-separated path. Default false.
+     :strict?          Always overrides to true regardless of value provided.
+     :wildcard-append? Dictates if wildcard values should be appended to
+                       the end of existing seqs instead of overwriting existing
+                       values. Default `false`.
+     :wildcard-limit   Dictates how many wildcard paths should be generated.
+                       If `multi-value?`, defaults to the number of values.
+                       In overwrite mode, defaults to the length of each coll.
+                       In append mode, defaults to 1."
+  ([json paths values]
+   (apply-multi-value json paths values {}))
+  ([json paths values opts-map]
+   (let [opts-map* (assoc opts-map :strict? true)]
+     (apply-multi-value* json (parse-paths paths opts-map*) values opts-map*))))

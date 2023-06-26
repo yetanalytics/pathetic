@@ -265,14 +265,71 @@ Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden 
 ```
 
 ``` clojure
-(= (update-in
+(= (assoc-in
     stmt
-    ["context" "contextActivities" "category"]
-    (fn [old] (conj old
-                    {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"})))
+    ["context" "contextActivities" "category" 0 "id"]
+    "http://www.example.com/meetings/categories/brainstorm_sesh")
    (apply-value stmt
                 "$.context.contextActivities.category[*].id"
                 "http://www.example.com/meetings/categories/brainstorm_sesh"))
+
+(= (update-in
+    stmt
+    ["context" "contextActivities" "category"]
+    (conj old
+          {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}))
+   (apply-value stmt
+                "$.context.contextActivities.category[*].id"
+                "http://www.example.com/meetings/categories/brainstorm_sesh"
+                {:wildcard-append? true}))
+```
+
+### apply-multi-value
+
+```
+"Given `json`, a JSONPath string `paths`, and a collection of JSON data
+`value`, apply `value` to the location given by `paths` in the order
+they are given. If the location exists, update the pre-existing value.
+Otherwise, create the necessary data structures needed to contain `value`.
+
+For example, an array specified by `[0,1]` in the path, then the first
+and second elements of `value` will be applied. Returns the modified
+`json` once `value` or the available path seqs runs out.
+
+The same caveats as `apply-value` apply here as well.
+   
+The following `opts-map` fields are supported:
+:first?           Apply only the first \"|\"-separated path. Default false.
+:strict?          Always overrides to true regardless of value provided.
+:wildcard-append? Dictates if wildcard values should be appended to
+                  the end of existing seqs instead of overwriting existing
+                  values. Default `false`.
+:wildcard-limit   Dictates how many wildcard paths should be generated.
+                  Defaults to the number of values.
+```
+
+```clojure
+(= (-> stmt
+       (assoc-in ["context" "contextActivities" "category" 0 "id"]
+                 "http://www.example.com/meetings/categories/brainstorm_sesh")
+       (assoc-in ["context" "contextActivities" "category" 1 "id"]
+                 "http://www.example.com/meetings/categories/whiteboard_sesh"))
+   (apply-multi-value stmt
+                      "$.context.contextActivities.category[*].id"
+                      ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                       "http://www.example.com/meetings/categories/whiteboard_sesh"]))
+
+(= (update-in
+    stmt
+    ["context" "contextActivities" "category"]
+    (conj old
+          {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"})
+          {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})
+   (apply-multi-value stmt
+                      "$.context.contextActivities.category[*].id"
+                      ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                       "http://www.example.com/meetings/categories/whiteboard_sesh"]
+                      {:wildcard-append? true}))
 ```
 
 ## Other usage

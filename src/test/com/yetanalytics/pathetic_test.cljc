@@ -563,21 +563,42 @@
                               {:wildcard-append? true})
                (p/apply-value "$.context.contextActivities.category[*].id"
                               "http://www.example.com/meetings/categories/whiteboard_sesh"
-                              {:wildcard-append? true})))))
+                              {:wildcard-append? true}))))
+    (is (= (-> long-statement
+               (assoc-in
+                ["context" "contextActivities" "category" 0 "id"]
+                "http://www.example.com/meetings/categories/brainstorm_sesh")
+               (assoc-in
+                ["context" "contextActivities" "category" 1 "id"]
+                "http://www.example.com/meetings/categories/whiteboard_sesh"))
+           (-> long-statement
+               (p/apply-multi-value "$.context.contextActivities.category[*].id"
+                                    ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                                     "http://www.example.com/meetings/categories/whiteboard_sesh"]))))
+    (is (= (update-in long-statement
+                      ["context" "contextActivities" "category"]
+                      conj
+                      {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
+                      {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})
+           (-> long-statement
+               (p/apply-multi-value "$.context.contextActivities.category[*].id"
+                                    ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                                     "http://www.example.com/meetings/categories/whiteboard_sesh"]
+                                    {:wildcard-append? true})))))
   (testing "Applying and updating multiple values"
     (is (= {"foo" []} ; unchanged
-           (p/apply-value {"foo" []} "$.foo.*" [] {:multi-value? true})))
+           (p/apply-multi-value {"foo" []} "$.foo.*" [])))
     (is (= {"foo" []}
-           (p/apply-value {"foo" []} "$.foo[0]" [] {:multi-value? true})))
+           (p/apply-multi-value {"foo" []} "$.foo[0]" [])))
     (is (= {"foo" []}
-           (p/apply-value {"foo" []} "$.foo[0,1]" [] {:multi-value? true})))
+           (p/apply-multi-value {"foo" []} "$.foo[0,1]" [])))
     (is (= {"foo" [1]}
-           (p/apply-value {"foo" []} "$.foo[0]" [1] {:multi-value? true})))
+           (p/apply-multi-value {"foo" []} "$.foo[0]" [1])))
     (is (= {"foo" [1]}
-           (p/apply-value {"foo" []} "$.foo[0,1]" [1] {:multi-value? true})))
+           (p/apply-multi-value {"foo" []} "$.foo[0,1]" [1])))
     (are [expected path]
          (= expected
-            (p/apply-value {"foo" []} path [1 2] {:multi-value? true}))
+            (p/apply-multi-value {"foo" []} path [1 2]))
       {"foo" [1 2]}     "$.foo[0,1]"
       {"foo" [nil 1 2]} "$.foo[1,2]"
       {"foo" [1 nil 2]} "$.foo[0,2]"
@@ -592,10 +613,7 @@
   (testing "Applying w/ different values of `:wildcard-append?` and `:wildcard-limit`"
     (are [expected opt-args]
          (= expected
-            (p/apply-value {"foo" [0 0 0]}
-                           "$.foo.*"
-                           1
-                           (merge {:multi-value? false} opt-args)))
+            (p/apply-value {"foo" [0 0 0]} "$.foo.*" 1 opt-args))
       {"foo" [1 1 1]}     {}
       {"foo" [1 1 1]}     {:wildcard-append? false}
       {"foo" [1 1 1]}     {:wildcard-append? false
@@ -614,10 +632,7 @@
                            :wildcard-limit   0})
     (are [expected values opt-args]
          (= expected
-            (p/apply-value {"foo" [0 0 0]}
-                           "$.foo.*"
-                           values
-                           (merge {:multi-value? true} opt-args)))
+            (p/apply-multi-value {"foo" [0 0 0]} "$.foo.*" values opt-args))
       {"foo" [1 2 0]}     [1 2]     {}
       {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false}
       {"foo" [1 2 3 4]}   [1 2 3 4] {:wildcard-append? false}
@@ -646,7 +661,8 @@
                          p/select-keys-at*
                          p/excise*
                          p/speculate-paths*
-                         p/apply-value*]
+                         p/apply-value*
+                         p/apply-multi-value*]
                        {:clojure.spec.test.check/opts
                         {:num-tests #?(:clj 200 :cljs 40)
                          :seed (rand-int 2000000000)}})
