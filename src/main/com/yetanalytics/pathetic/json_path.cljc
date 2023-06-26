@@ -1,10 +1,11 @@
 (ns com.yetanalytics.pathetic.json-path
   (:require #?(:clj [clojure.core.match :as m]
                :cljs [cljs.core.match :as m])
-            [clojure.string     :as string]
-            [clojure.walk       :as w]
-            [clojure.spec.alpha :as s]
-            [instaparse.core    :as insta]
+            [clojure.string         :as string]
+            [clojure.walk           :as w]
+            [clojure.spec.alpha     :as s]
+            [clojure.spec.gen.alpha :as sgen]
+            [instaparse.core        :as insta]
             [com.yetanalytics.pathetic.json :as json]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -88,7 +89,9 @@
 ;; Strict versions of above
 
 (s/def ::strict-keyset
-  (s/every (s/or :key string? :index nat-int?)
+  (s/every (s/or :key string?
+                 ;; Need to limit generated index size
+                 :index (s/with-gen nat-int? #(sgen/choose 0 1000)))
            :type vector?
            :min-count 1
            :gen-max 5))
@@ -99,12 +102,22 @@
 
 (s/def ::strict-path
   (s/every ::strict-element
-           :type vector?))
+           :type vector?
+           ;; We need to limit gen here since too many wildcards can lead to
+           ;; exponential blowup (25^3 = 15,625)
+           :gen-max 3))
 
 (s/def ::strict-paths
   (s/every ::strict-path
            :type vector?
-           :min-count 1))
+           :min-count 1
+           :gen-max 5))
+
+(s/def ::wildcard-append?
+  boolean?)
+
+(s/def ::wildcard-limit ; Need `choose` to limit generated int size
+  (s/nilable (s/with-gen int? #(sgen/choose -5 25))))
 
 ;; Instaparse parsing failures
 
@@ -325,8 +338,15 @@
 
 ;; Helper functions
 
-(defn- count-safe [coll]
+(defn- count-safe
+  "Like `count` but returns 0 instead of throwing if `coll` is a scalar."
+  [coll]
   (if (coll? coll) (count coll) 0))
+
+(defn- get-safe
+  "Get a value only if `coll` is an actual coll (i.e. not a string)."
+  [coll k]
+  (when (coll? coll) (get coll k)))
 
 (defn- normalize-indices
   "Normalize indices by doing the following:
@@ -444,7 +464,7 @@
                    ;; nil values from non-existent ones in the coll.
                    (if (contains? jsn sub-elm)
                      [(conj worklist
-                            {:json (get jsn sub-elm)
+                            {:json (get-safe jsn sub-elm)
                              :rest (rest rst)
                              :path (conj pth sub-elm)
                              :desc false})
@@ -512,7 +532,9 @@
 
 (s/fdef speculative-path-seqs
   :args (s/cat :json ::json/json
-               :path ::strict-path)
+               :path ::strict-path
+               :wildcard-append? ::wildcard-append?
+               :wildcard-limit   ::wildcard-limit)
   :ret  (s/every (s/keys :req-un [::json/json ::json/path])
                  :kind vector?))
 
@@ -524,7 +546,10 @@
    Accepts two more args: `wildcard-append?`, which dictates if wildcard values
    should be appended to the end of existing seqs (default `true`), and
    `wildcard-limit`, dictating how many wildcard paths should be generated
-   (defaults to 1 in append mode, the coll size in overwrite mode)."
+   (defaults to 1 in append mode, the coll size in overwrite mode).
+   
+   Note that too many wildcards in `json-path`, or too large of a value of
+   `wildcard-limit`, may lead to exponential blowup."
   [json-obj json-path wildcard-append? wildcard-limit]
   (loop [worklist (init-queue {:json json-obj
                                :rest json-path
@@ -540,7 +565,7 @@
                  (fn [worklist sub-elm]
                    (if (or (string? sub-elm) (nat-int? sub-elm))
                      (conj worklist
-                           {:json (get jsn sub-elm)
+                           {:json (get-safe jsn sub-elm)
                             :rest (rest rst)
                             :path (conj pth sub-elm)})
                      (throw (ex-info "Illegal path element"

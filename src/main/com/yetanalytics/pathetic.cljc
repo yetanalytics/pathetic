@@ -1,5 +1,6 @@
 (ns com.yetanalytics.pathetic
   (:require [clojure.spec.alpha                  :as s]
+            [clojure.spec.gen.alpha              :as sgen]
             [com.yetanalytics.pathetic.json      :as json]
             [com.yetanalytics.pathetic.json-path :as json-path]))
 
@@ -15,6 +16,10 @@
 (s/def ::return-duplicates? boolean?)
 (s/def ::prune-empty? boolean?)
 (s/def ::multi-value? boolean?)
+
+;; See equivalent specs in json-path namespace
+(s/def ::wildcard-append? boolean?)
+(s/def ::wildcard-limit (s/with-gen int? #(sgen/choose -5 25)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper functions
@@ -37,6 +42,14 @@
                       {:type    ::invalid-strict-path
                        :paths   paths
                        :element strict-elem})))))
+
+(defn- assert-multi-value
+  [multi-value? value]
+  (when (and multi-value?
+             (not (coll? value)))
+    (throw (ex-info "Provided value for multi-values mode is not a coll"
+                    {:type  ::invalid-multi-value
+                     :value value}))))
 
 (defn- filter-missing
   "If filter? is true, then return only path sequences where the
@@ -193,7 +206,7 @@
 
 (s/fdef speculate-paths*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::json-path/strict-paths
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
   :ret (s/every ::json/path))
@@ -220,10 +233,10 @@
              (and wildcard-append? 1))
          enum-paths
          (fn [path]
-           (->> (json-path/speculative-path-seqs
-                 json path
-                 :wildcard-append? wildcard-append?
-                 :wildcard-limit wildcard-limit)
+           (->> (json-path/speculative-path-seqs json
+                                                 path
+                                                 wildcard-append?
+                                                 wildcard-limit)
                 (mapv :path)))]
      (->> paths (mapcat enum-paths) distinct vec))))
 
@@ -466,12 +479,17 @@
 ;; Apply Value(s) ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/fdef apply-value*
-  :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
-               :value ::json/json
-               :opts-map (s/? (s/keys :opt-un [::multi-value?
-                                               ::wildcard-append?
-                                               ::wildcard-limit])))
+  :args (s/and
+         (s/cat :json ::json/json
+                :paths ::json-path/strict-paths
+                :value ::json/json
+                :opts-map (s/? (s/keys :opt-un [::multi-value?
+                                                ::wildcard-append?
+                                                ::wildcard-limit])))
+         (fn [{value :value {:keys [multi-value?]} :opts-map}]
+           (or (not multi-value?)
+               (and (= :coll (first value))
+                    (coll? (second value))))))
   :ret ::json/json)
 
 (defn apply-value*
@@ -502,6 +520,8 @@
           :or {multi-value?     false
                wildcard-append? true}}
          opts-map
+         _
+         (assert-multi-value multi-value? value)
          wildcard-limit
          (or wildcard-limit
              (cond
@@ -510,11 +530,10 @@
                :else            nil))
          ;; Paths and values
          path-fn   (fn [path]
-                     (json-path/speculative-path-seqs
-                      json
-                      path
-                      :wildcard-append? wildcard-append?
-                      :wildcard-limit wildcard-limit))
+                     (json-path/speculative-path-seqs json
+                                                      path
+                                                      wildcard-append?
+                                                      wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (if multi-value?
                      (mapv (fn [p va] [p va]) paths* value)

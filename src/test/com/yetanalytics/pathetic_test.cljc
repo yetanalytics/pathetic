@@ -138,6 +138,16 @@
                               "$.universe.*.foo.bar"
                               {:wildcard-append? false
                                :wildcard-limit   1})))
+    (is (= []
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   -1})))
+    (is (= []
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? true
+                               :wildcard-limit   -1})))
     (is (= (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                               "$.universe[0].foo.bar")
            (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
@@ -611,9 +621,8 @@
                          p/get-path-value-map*
                          p/select-keys-at*
                          p/excise*
-                         ;; Don't check apply-value* since the generator often
-                         ;; gets stuck.
-                         #_p/apply-value*]
+                         p/speculate-paths*
+                         p/apply-value*]
                        {:clojure.spec.test.check/opts
                         {:num-tests #?(:clj 200 :cljs 40)
                          :seed (rand-int 2000000000)}})
