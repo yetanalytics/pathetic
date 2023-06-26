@@ -47,7 +47,7 @@
         (recur (rest path)))
       true)))
 
-;; Indefinite paths
+;; Non-strict paths ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/def ::wildcard #{'*})
 (s/def ::recursive #{'..})
@@ -81,7 +81,7 @@
            :type vector?
            :min-count 1))
 
-;; Strict versions of above
+;; Strict paths ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/def ::strict-keyset
   (s/every (s/or :key string?
@@ -108,6 +108,8 @@
            :min-count 1
            :gen-max 5))
 
+;; Function Args ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (s/def ::wildcard-append?
   boolean?)
 
@@ -115,10 +117,10 @@
   (s/nilable (s/with-gen int? #(sgen/choose -5 25))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Path enumeration functions
+;; Path enumeration
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Helper functions
+;; Helper Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn- count-safe
   "Like `count` but returns 0 instead of throwing if `coll` is a scalar."
@@ -193,7 +195,7 @@
   #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
      :cljs (conj cljs.core/PersistentQueue.EMPTY init)))
 
-;; Main functions
+;; Regular Path Enumeration ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/def ::fail boolean?)
 
@@ -311,6 +313,8 @@
                                 :fail false})]
           (recur worklist' reslist')))
       (persistent! reslist))))
+
+;; Speculative Path Enumeration ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (s/fdef speculative-path-seqs
   :args (s/cat :json ::json/json
