@@ -120,7 +120,7 @@ Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden 
 
 :wildcard-append? Dictates if wildcard values should be appended to
                   the end of existing seqs instead of overwriting existing
-                  values. Default `true`.
+                  values. Default `false`.
 :wildcard-limit   Dictates how many wildcard paths should be generated.
                   In overwrite mode, defaults to the length of each coll.
                   In append mode, defaults to 1.
@@ -257,7 +257,7 @@ Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden 
                   seqs runs out.
 :wildcard-append? Dictates if wildcard values should be appended to
                   the end of existing seqs instead of overwriting existing
-                  values. Default `true`.
+                  values. Default `false`.
 :wildcard-limit   Dictates how many wildcard paths should be generated.
                   If `multi-value?`, defaults to the number of values.
                   In overwrite mode, defaults to the length of each coll.

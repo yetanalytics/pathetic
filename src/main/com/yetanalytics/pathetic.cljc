@@ -505,7 +505,7 @@
                        seqs runs out.
      :wildcard-append? Dictates if wildcard values should be appended to
                        the end of existing seqs instead of overwriting existing
-                       values. Default `true`.
+                       values. Default `false`.
      :wildcard-limit   Dictates the max number of values to applied per coll.
                        If `multi-value?`, defaults to the number of values.
                        In overwrite mode, defaults to the length of each coll.
@@ -518,7 +518,7 @@
                  wildcard-append?
                  wildcard-limit]
           :or {multi-value?     false
-               wildcard-append? true}}
+               wildcard-append? false}}
          opts-map
          _
          (assert-multi-value multi-value? value)
@@ -572,7 +572,7 @@
                        seqs runs out.
      :wildcard-append? Dictates if wildcard values should be appended to
                        the end of existing seqs instead of overwriting existing
-                       values. Default `true`.
+                       values. Default `false`.
      :wildcard-limit   Dictates how many wildcard paths should be generated.
                        If `multi-value?`, defaults to the number of values.
                        In overwrite mode, defaults to the length of each coll.

@@ -498,6 +498,11 @@
            (p/excise long-statement
                      "$.context.contextActivities.grouping[*]")))))
 
+(comment
+  (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]}
+                 "$.universe[1].*"
+                 2))
+
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
     (is (= {"foo" 0}
@@ -509,37 +514,56 @@
             (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]} path 2))
       {"universe" [{"foo" 0} {"bar" 1 "baz" 2}]}       "$.universe[1].baz"
       {"universe" [{"foo" 0} {"bar" 2}]}               "$.universe[1].bar"
-      {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar.*"
       {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar[0]"
       {"universe" [{"foo" 0} {"bar" [nil 2]}]}         "$.universe[1].bar[1]"
       {"universe" [{"foo" 0} {"bar" [2 nil 2]}]}       "$.universe[1].bar[0,2]"
-      {"universe" [{"foo" 0} {"bar" 1 "1" 2}]}         "$.universe[1].*"
-      {"universe" [{"foo" 0} {"bar" 1} {"baz" 2}]}     "$.universe[*].baz"
       {"universe" [{"foo" 0 "b" 2} {"bar" 1 "b" 2}]}   "$.universe[0,1].b"
       {"universe" [2 2]}                               "$.universe[0,1]"
       {"universe" 2 "baz" 2}                           "$['universe','baz']"
       {"universe" 2 "baz" 2}                           "$.universe|$.baz"
       {"universe" [{"foo" 0} {"bar" 1}] "baz" 2}       "$.baz"
-      {"universe" [{"foo" 0} {"bar" 1}] "1" {"baz" 2}} "$.*.baz"
-      {"universe" [{"foo" 0} {"bar" 1}] "1" 2}         "$.*"
       [2]       "$[0]"
       2         "$"
-      {"foo" 2} "$ | $.foo")
+      {"foo" 2} "$ | $.foo"
+      ;; wildcard tests
+      {"universe" [{"foo" 0} {"bar" [2]}]}           "$.universe[1].bar.*"
+      {"universe" [{"foo" 0} {"bar" 2}]}             "$.universe[1].*"
+      {"universe" [{"foo" 0 "b" 2} {"bar" 1 "b" 2}]} "$.universe[*].b"
+      {"universe" {"baz" 2}}                         "$.*.baz"
+      {"universe" 2}                                 "$.*")
+    (are [expected path]
+         (= expected
+            (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]} path 2
+                           {:wildcard-append? true}))
+      {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar.*"
+      {"universe" [{"foo" 0} {"bar" 1 "1" 2}]}         "$.universe[1].*"
+      {"universe" [{"foo" 0} {"bar" 1} {"b" 2}]}       "$.universe[*].b"
+      {"universe" [{"foo" 0} {"bar" 1}] "1" {"baz" 2}} "$.*.baz"
+      {"universe" [{"foo" 0} {"bar" 1}] "1" 2}         "$.*")
     (is (strict-parse-failed? (p/apply-value {"universe" 0} "$..*" 2)))
     ;; Tests on Statement
     (is (= (assoc long-statement "foo" "bar")
            (p/apply-value long-statement "$.foo" "bar")))
-    (is (= (update-in long-statement
-                      ["context" "contextActivities" "category"]
-                      (fn [old]
-                        (conj old
-                              {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
-                              {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})))
+    (is (= (assoc-in long-statement
+                     ["context" "contextActivities" "category" 0 "id"]
+                     "http://www.example.com/meetings/categories/whiteboard_sesh")
            (-> long-statement
                (p/apply-value "$.context.contextActivities.category[*].id"
                               "http://www.example.com/meetings/categories/brainstorm_sesh")
                (p/apply-value "$.context.contextActivities.category[*].id"
-                              "http://www.example.com/meetings/categories/whiteboard_sesh")))))
+                              "http://www.example.com/meetings/categories/whiteboard_sesh"))))
+    (is (= (update-in long-statement
+                      ["context" "contextActivities" "category"]
+                      conj
+                      {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
+                      {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})
+           (-> long-statement
+               (p/apply-value "$.context.contextActivities.category[*].id"
+                              "http://www.example.com/meetings/categories/brainstorm_sesh"
+                              {:wildcard-append? true})
+               (p/apply-value "$.context.contextActivities.category[*].id"
+                              "http://www.example.com/meetings/categories/whiteboard_sesh"
+                              {:wildcard-append? true})))))
   (testing "Applying and updating multiple values"
     (is (= {"foo" []} ; unchanged
            (p/apply-value {"foo" []} "$.foo.*" [] {:multi-value? true})))
@@ -572,7 +596,7 @@
                            "$.foo.*"
                            1
                            (merge {:multi-value? false} opt-args)))
-      {"foo" [0 0 0 1]}   {}
+      {"foo" [1 1 1]}     {}
       {"foo" [1 1 1]}     {:wildcard-append? false}
       {"foo" [1 1 1]}     {:wildcard-append? false
                            :wildcard-limit   3}
@@ -594,7 +618,7 @@
                            "$.foo.*"
                            values
                            (merge {:multi-value? true} opt-args)))
-      {"foo" [0 0 0 1 2]} [1 2]     {}
+      {"foo" [1 2 0]}     [1 2]     {}
       {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false}
       {"foo" [1 2 3 4]}   [1 2 3 4] {:wildcard-append? false}
       {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false
