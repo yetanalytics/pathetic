@@ -116,16 +116,28 @@
     (is (= [["universe" 2 "foo" "bar"]]
            (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                               "$.universe.*.foo.bar")))
-    (is (= [["universe" 0 "foo" "bar"]]
+    (is (= [["universe" 2 "foo" "bar"]
+            ["universe" 3 "foo" "bar"]]
            (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                               "$.universe.*.foo.bar"
-                              {:wildcard-append? false})))
+                              {:wildcard-limit 2})))
     (is (= [["universe" 0 "foo" "bar"]
             ["universe" 1 "foo" "bar"]]
            (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                               "$.universe.*.foo.bar"
+                              {:wildcard-append? false})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "foo" "bar"]
+            ["universe" 2 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
                               {:wildcard-append? false
-                               :wildcard-limit   2})))
+                               :wildcard-limit   3})))
+    (is (= [["universe" 0 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   1})))
     (is (= (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
                               "$.universe[0].foo.bar")
            (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
@@ -538,37 +550,58 @@
       {"foo" [1]}       "$.foo[0]"
       {"foo" [nil 1]}   "$.foo[1]"
       {"foo" 1 "bar" 2} "$['foo','bar']"
-      {"foo" [1]}       "$.foo[*]"
+      {"foo" [1 2]}     "$.foo[*]"
       [1 2]             "$[0,1]"
       1                 "$"
       {"foo" 2}         "$ | $.foo"
       {"foo" [2]}       "$ | $.foo[0,1]"))
   (testing "Applying w/ different values of `:wildcard-append?` and `:wildcard-limit`"
-    (is (= {"foo" [1]}
-           (p/apply-value {"foo" []} "$.foo.*" [1 2] {:multi-value? true})))
-    (is (= {"foo" [1 2]}
-           (p/apply-value {"foo" []} "$.foo.*" [1 2] {:multi-value? true
-                                                      :wildcard-limit 2})))
-    (is (= {"foo" [1 2]}
-           (p/apply-value {"foo" []} "$.foo.*" [1 2] {:multi-value? true
-                                                      :wildcard-limit 3})))
-    (is (= {"foo" [0 1]}
-           (p/apply-value {"foo" [0]} "$.foo.*" [1] {:multi-value? true
-                                                     :wildcard-append? true})))
-    (is (= {"foo" [1]}
-           (p/apply-value {"foo" [0]} "$.foo.*" [1] {:multi-value? true
-                                                     :wildcard-append? false})))
-    (is (= {"foo" [1]}
-           (p/apply-value {"foo" [0]} "$.foo.*" [1 2] {:multi-value? true
-                                                       :wildcard-append? false})))
-    (is (= {"foo" [0 1 2]}
-           (p/apply-value {"foo" [0]} "$.foo.*" [1 2] {:multi-value? true
-                                                       :wildcard-append? true
-                                                       :wildcard-limit 2})))
-    (is (= {"foo" [1 2]}
-           (p/apply-value {"foo" [0]} "$.foo.*" [1 2] {:multi-value? true
-                                                       :wildcard-append? false
-                                                       :wildcard-limit 2})))))
+    (are [expected opt-args]
+         (= expected
+            (p/apply-value {"foo" [0 0 0]}
+                           "$.foo.*"
+                           1
+                           (merge {:multi-value? false} opt-args)))
+      {"foo" [0 0 0 1]}   {}
+      {"foo" [1 1 1]}     {:wildcard-append? false}
+      {"foo" [1 1 1]}     {:wildcard-append? false
+                           :wildcard-limit   3}
+      {"foo" [1 1 0]}     {:wildcard-append? false
+                           :wildcard-limit   2}
+      {"foo" [1 0 0]}     {:wildcard-append? false
+                           :wildcard-limit   1}
+      {"foo" [0 0 0]}     {:wildcard-append? false
+                           :wildcard-limit   0}
+      {"foo" [0 0 0 1 1]} {:wildcard-append? true
+                           :wildcard-limit   2}
+      {"foo" [0 0 0 1]}   {:wildcard-append? true
+                           :wildcard-limit   1}
+      {"foo" [0 0 0]}     {:wildcard-append? true
+                           :wildcard-limit   0})
+    (are [expected values opt-args]
+         (= expected
+            (p/apply-value {"foo" [0 0 0]}
+                           "$.foo.*"
+                           values
+                           (merge {:multi-value? true} opt-args)))
+      {"foo" [0 0 0 1 2]} [1 2]     {}
+      {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false}
+      {"foo" [1 2 3 4]}   [1 2 3 4] {:wildcard-append? false}
+      {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   3}
+      {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   2}
+      {"foo" [1 0 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   1}
+      {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true}
+      {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   3}
+      {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   2}
+      {"foo" [0 0 0 1]}   [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   1}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   0})))
 
 (deftest gen-tests
   (testing "Generative tests for pathetic"

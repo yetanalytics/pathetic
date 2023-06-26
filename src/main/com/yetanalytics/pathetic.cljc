@@ -204,15 +204,20 @@
    
    The following `opts-map` fields are supported:
      :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs. Default `true`.
-     :wildcard-limit`, Dicates how many wildcard paths should be generated.
-                       Default `1`."
+                       the end of existing seqs instead of overwriting existing
+                       values. Default `true`.
+     :wildcard-limit   Dictates how many wildcard paths should be generated.
+                       In overwrite mode, defaults to the length of each coll.
+                       In append mode, defaults to 1."
   ([json paths]
    (speculate-paths* json paths {}))
   ([json paths opts-map]
    (let [{:keys [wildcard-append? wildcard-limit]
-          :or {wildcard-append? true wildcard-limit 1}}
+          :or {wildcard-append? true}}
          opts-map
+         wildcard-limit
+         (or wildcard-limit
+             (and wildcard-append? 1))
          enum-paths
          (fn [path]
            (->> (json-path/speculative-path-seqs
@@ -234,9 +239,11 @@
      :first?           Only apply the first \"|\"-separated path.
      :strict?          Always set to `true`.
      :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs. Default `true`.
+                       the end of existing seqs instead of overwriting existing
+                       values. Default `true`.
      :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       Default `1`."
+                       In overwrite mode, defaults to the length of each coll.
+                       In append mode, defaults to 1"
   ([json paths]
    (speculate-paths json paths {}))
   ([json paths opts-map]
@@ -479,9 +486,12 @@
                        the modified `json` once `value` or the available path
                        seqs runs out.
      :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs. Default `true`.
-     :wildcard-limit`, Dicates how many wildcard paths should be generated.
-                       Default `1`."
+                       the end of existing seqs instead of overwriting existing
+                       values. Default `true`.
+     :wildcard-limit   Dictates the max number of values to applied per coll.
+                       If `multi-value?`, defaults to the number of values.
+                       In overwrite mode, defaults to the length of each coll.
+                       In append mode, defaults to 1."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
@@ -490,13 +500,19 @@
                  wildcard-append?
                  wildcard-limit]
           :or {multi-value?     false
-               wildcard-append? true
-               wildcard-limit   1}}
+               wildcard-append? true}}
          opts-map
+         wildcard-limit
+         (or wildcard-limit
+             (cond
+               multi-value?     (count value)
+               wildcard-append? 1
+               :else            nil))
          ;; Paths and values
          path-fn   (fn [path]
                      (json-path/speculative-path-seqs
-                      json path
+                      json
+                      path
                       :wildcard-append? wildcard-append?
                       :wildcard-limit wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
@@ -536,9 +552,12 @@
                        the modified `json` once `value` or the available path
                        seqs runs out.
      :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs. Default `true`.
+                       the end of existing seqs instead of overwriting existing
+                       values. Default `true`.
      :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       Default `1`."
+                       If `multi-value?`, defaults to the number of values.
+                       In overwrite mode, defaults to the length of each coll.
+                       In append mode, defaults to 1."
   ([json paths value]
    (apply-value json paths value {}))
   ([json paths value opts-map]

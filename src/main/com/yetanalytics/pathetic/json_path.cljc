@@ -325,6 +325,9 @@
 
 ;; Helper functions
 
+(defn- count-safe [coll]
+  (if (coll? coll) (count coll) 0))
+
 (defn- normalize-indices
   "Normalize indices by doing the following:
    - Turn array splices into array index sequences
@@ -508,7 +511,8 @@
       (persistent! reslist))))
 
 (s/fdef speculative-path-seqs
-  :args (s/cat :json ::json/json :path ::strict-path)
+  :args (s/cat :json ::json/json
+               :path ::strict-path)
   :ret  (s/every (s/keys :req-un [::json/json ::json/path])
                  :kind vector?))
 
@@ -517,13 +521,11 @@
    the location in the JSON data is missing or incompatible. Returns the
    same fields as path-seqs except for `:fail`.
    
-   Accepts two kwargs: `wildcard-append?`, which dictates if wildcard values
+   Accepts two more args: `wildcard-append?`, which dictates if wildcard values
    should be appended to the end of existing seqs (default `true`), and
    `wildcard-limit`, dictating how many wildcard paths should be generated
-   (default `1`)."
-  [json-obj json-path & {:keys [wildcard-append? wildcard-limit]
-                         :or {wildcard-append? true
-                              wildcard-limit   1}}]
+   (defaults to 1 in append mode, the coll size in overwrite mode)."
+  [json-obj json-path wildcard-append? wildcard-limit]
   (loop [worklist (init-queue {:json json-obj
                                :rest json-path
                                :path []})
@@ -548,21 +550,24 @@
                  (pop worklist)
                  element)]
             (recur worklist' reslist))
-          ;; Wildcard: append to end
+          ;; Wildcard
           (= '* element)
-          (let [idx-start (if (and wildcard-append? (coll? jsn))
-                            (count jsn)
+          (let [idx-start (if wildcard-append?
+                            (count-safe jsn)
                             0)
-                idx-end   (+ idx-start wildcard-limit)
-                worklist'
-                (reduce
-                 (fn [worklist idx]
-                   (conj worklist
-                         {:json nil ; current val doesn't matter regardless if we override or append
-                          :rest (rest rst)
-                          :path (conj pth (if (map? jsn) (str idx) idx))}))
-                 (pop worklist)
-                 (range idx-start idx-end))]
+                idx-diff  (or wildcard-limit
+                              (and wildcard-append? 1)
+                              (count-safe jsn))
+                idx-end   (+ idx-start idx-diff)
+                worklist' (reduce
+                           (fn [worklist idx]
+                             (conj worklist
+                                   {:json nil ; current val doesn't matter
+                                    :rest (rest rst)
+                                    :path (conj pth (cond-> idx
+                                                      (map? jsn) str))}))
+                           (pop worklist)
+                           (range idx-start idx-end))]
             (recur worklist' reslist))
           :else ;; Includes recursive descent
           (throw (ex-info "Illegal path element"

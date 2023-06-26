@@ -119,9 +119,11 @@ return the key paths for all strings.
 Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden to `true`. Also accepts the following args:
 
 :wildcard-append? Dictates if wildcard values should be appended to
-                  the end of existing seqs. Default `true`.
+                  the end of existing seqs instead of overwriting existing
+                  values. Default `true`.
 :wildcard-limit   Dictates how many wildcard paths should be generated.
-                  Default `1`.
+                  In overwrite mode, defaults to the length of each coll.
+                  In append mode, defaults to 1.
 ```
 
 ```clojure
@@ -254,9 +256,12 @@ Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden 
                   the modified `json` once `value` or the available path
                   seqs runs out.
 :wildcard-append? Dictates if wildcard values should be appended to
-                  the end of existing seqs. Default `true`.
-:wildcard-limit   Dictates how many wildcard paths should be generated   
-                  Default `1`.
+                  the end of existing seqs instead of overwriting existing
+                  values. Default `true`.
+:wildcard-limit   Dictates how many wildcard paths should be generated.
+                  If `multi-value?`, defaults to the number of values.
+                  In overwrite mode, defaults to the length of each coll.
+                  In append mode, defaults to 1.
 ```
 
 ``` clojure
