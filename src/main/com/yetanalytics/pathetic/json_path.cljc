@@ -574,25 +574,32 @@
                                       :element element}))))
                  (pop worklist)
                  element)]
-            (recur worklist' reslist))
+            (recur worklist' reslist))      
           ;; Wildcard
           (= '* element)
-          (let [idx-start (if wildcard-append?
-                            (count-safe jsn)
-                            0)
-                idx-diff  (or wildcard-limit
-                              (and wildcard-append? 1)
-                              (count-safe jsn))
-                idx-end   (+ idx-start idx-diff)
+          (let [indexes   (if wildcard-append?
+                            ;; append mode
+                            (cond->> (range (count-safe jsn)
+                                            (+ (count-safe jsn)
+                                               (or wildcard-limit 1)))
+                              (map? jsn) (map str))
+                            ;; overwrite mode
+                            (cond
+                              (map? jsn)
+                              (cond->> (sort (keys jsn))
+                                wildcard-limit (take wildcard-limit))
+                              (coll? jsn)
+                              (range (or wildcard-limit
+                                         (count-safe jsn)))
+                              :else [0]))
                 worklist' (reduce
                            (fn [worklist idx]
                              (conj worklist
                                    {:json nil ; current val doesn't matter
                                     :rest (rest rst)
-                                    :path (conj pth (cond-> idx
-                                                      (map? jsn) str))}))
+                                    :path (conj pth idx)}))
                            (pop worklist)
-                           (range idx-start idx-end))]
+                           indexes)]
             (recur worklist' reslist))
           :else ;; Includes recursive descent
           (throw (ex-info "Illegal path element"
