@@ -332,6 +332,28 @@
   :ret  (s/every (s/keys :req-un [::json/json ::json/path])
                  :kind vector?))
 
+(defn- wildcard-indexes
+  "At a given `json` location, determine the indexes of the speculative
+   path at that location. In append mode, return up to `wildcard-limit`
+   indexes (defaults to `1` if `nil`). In overwrite mode, return up to
+   either `wildcard-limit` or `(count jsn)` indexes."
+  [jsn wildcard-append? wildcard-limit]
+  (if wildcard-append?
+    ;; append mode
+    (cond->> (range (count-safe jsn)
+                    (+ (count-safe jsn)
+                       (or wildcard-limit 1)))
+      (map? jsn) (map str))
+    ;; overwrite mode
+    (cond
+      (map? jsn)
+      (cond->> (sort (keys jsn))
+        wildcard-limit (take wildcard-limit))
+      (coll? jsn)
+      (range (or wildcard-limit
+                 (count-safe jsn)))
+      :else [0])))
+
 (defn speculative-path-seqs
   "Similar to `path-seqs`, except it continues traversing the path even if
    the location in the JSON data is missing or incompatible. Returns the
@@ -371,21 +393,7 @@
             (recur worklist' reslist))      
           ;; Wildcard
           (= '* element)
-          (let [indexes   (if wildcard-append?
-                            ;; append mode
-                            (cond->> (range (count-safe jsn)
-                                            (+ (count-safe jsn)
-                                               (or wildcard-limit 1)))
-                              (map? jsn) (map str))
-                            ;; overwrite mode
-                            (cond
-                              (map? jsn)
-                              (cond->> (sort (keys jsn))
-                                wildcard-limit (take wildcard-limit))
-                              (coll? jsn)
-                              (range (or wildcard-limit
-                                         (count-safe jsn)))
-                              :else [0]))
+          (let [indexes   (wildcard-indexes jsn wildcard-append? wildcard-limit)
                 worklist' (reduce
                            (fn [worklist idx]
                              (conj worklist
