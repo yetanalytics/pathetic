@@ -122,6 +122,10 @@
 
 ;; Helper Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn- init-queue [init]
+  #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
+     :cljs (conj cljs.core/PersistentQueue.EMPTY init)))
+
 (defn- count-safe
   "Like `count` but returns 0 instead of throwing if `coll` is a scalar."
   [coll]
@@ -132,56 +136,64 @@
   [coll k]
   (when (coll? coll) (get coll k)))
 
+(defn- clamp-start [len idx]
+  (cond (< idx 0)   0
+        (> idx len) len
+        :else       idx))
+
+(defn- clamp-end [len idx]
+  (cond (< idx -1)  -1
+        (> idx len) len
+        :else       idx))
+
+(defn- normalize-start [len start]
+  (cond (= :vec-lower start) 0
+        (= :vec-higher start) (dec len)
+        (neg-int? start) (clamp-start len (+ len start))
+        :else (clamp-start len start)))
+
+(defn- normalize-end [len end]
+  (cond (= :vec-lower end)  -1
+        (= :vec-higher end) len
+        (neg-int? end)      (clamp-end len (+ len end))
+        :else               (clamp-end len end)))
+
+(defn- slice->range [json slice]
+  (let [{:keys [start end step]} slice
+        len   (count json)
+        start (normalize-start len start)
+        end   (normalize-end len end)
+        ;; no infinite loops
+        step  (if (zero? step) 1 step)]
+    (range start end step)))
+
 (defn- normalize-indices
   "Normalize indices by doing the following:
    - Turn array splices into array index sequences
    - Turn negative array indices into positive ones"
   [keys json]
-  (letfn [(clamp-start
-           [len idx]
-           (cond (< idx 0) 0
-                 (> idx len) len
-                 :else idx))
-          (clamp-end
-           [len idx]
-           (cond (< idx -1) -1
-                 (> idx len) len
-                 :else idx))
-          (norm-start
-           [len start]
-           (cond (= :vec-lower start) 0
-                 (= :vec-higher start) (dec len)
-                 (neg-int? start) (clamp-start len (+ len start))
-                 :else (clamp-start len start)))
-          (norm-end
-           [len end]
-           (cond (= :vec-lower end) -1
-                 (= :vec-higher end) len
-                 (neg-int? end) (clamp-end len (+ len end))
-                 :else (clamp-end len end)))
-          (normalize-element
-           [keys' elem]
+  (letfn [(normalize-elements
+           [keys* element]
            (cond
-             (map? elem) ;; Element is an array splice
+             ;; JSONPath element is an array splice
+             (map? element)
              (if (vector? json)
-               (let [{:keys [start end step]} elem
-                     len   (count json)
-                     start (norm-start len start)
-                     end   (norm-end len end)
-                     step  (if (zero? step) 1 step) ;; no infinite loops
-                     nvals (range start end step)]
-                 (reduce (fn [keys' v] (conj! keys' v)) keys' nvals))
+               (reduce (fn [keys** v] (conj! keys** v))
+                       keys*
+                       (slice->range json element))
                ;; JSON data is not a vector, return a dummy index such that
                ;; (get json 0) => nil
-               (conj! keys' 0))
-             (neg-int? elem)
+               (conj! keys* 0))
+             ;; JSONPath element is a negative array index
              ;; Don't clamp normalized neg indices to 0; out of bounds = nil
-             (conj! keys' (+ (count json) elem))
+             (neg-int? element)
+             (conj! keys* (+ (count json) element))
+             ;; JSONPath element is a regular key
              :else
-             (conj! keys' elem)))
+             (conj! keys* element)))
           (normalize-indices*
            [keys]
-           (->> keys (reduce normalize-element (transient [])) persistent!))]
+           (->> keys (reduce normalize-elements (transient [])) persistent!))]
     ;; Optimization: don't normalize if there's only one key or index, and
     ;; it is not a splice or negative int - the vast majority of cases.
     (if (= 1 (count keys))
@@ -190,10 +202,6 @@
           keys
           (normalize-indices* keys)))
       (normalize-indices* keys))))
-
-(defn- init-queue [init]
-  #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
-     :cljs (conj cljs.core/PersistentQueue.EMPTY init)))
 
 ;; Regular Path Enumeration ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
