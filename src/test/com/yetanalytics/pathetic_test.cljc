@@ -107,75 +107,6 @@
            (p/get-paths long-statement
                         "$.context.contextActivities.category[*].id")))))
 
-(deftest speculate-paths-test
-  (testing "Enumerate deterministic JSONPaths regardless of values present"
-    (is (= [["foo"]]
-           (p/speculate-paths nil "$.foo")))
-    (is (= [[0]]
-           (p/speculate-paths [] "$[0]")))
-    (is (= [["universe" 2 "foo" "bar"]]
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar")))
-    (is (= [["universe" 2 "foo" "bar"]
-            ["universe" 3 "foo" "bar"]]
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar"
-                              {:wildcard-limit 2})))
-    (is (= [["universe" 0 "foo" "bar"]
-            ["universe" 1 "foo" "bar"]]
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar"
-                              {:wildcard-append? false})))
-    (is (= [["universe" 0 "foo" "bar"]
-            ["universe" 1 "foo" "bar"]
-            ["universe" 2 "foo" "bar"]]
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar"
-                              {:wildcard-append? false
-                               :wildcard-limit   3})))
-    (is (= [["universe" 0 "foo" "bar"]]
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar"
-                              {:wildcard-append? false
-                               :wildcard-limit   1})))
-    (is (= []
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar"
-                              {:wildcard-append? false
-                               :wildcard-limit   -1})))
-    (is (= []
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe.*.foo.bar"
-                              {:wildcard-append? true
-                               :wildcard-limit   -1})))
-    (is (= (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe[0].foo.bar")
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe[0].foo.bar | $.universe[1].baz"
-                              {:first? true})))
-    (is (= [["universe" 0 "foo" "bar"]
-            ["universe" 1 "baz"]]
-           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
-                              "$.universe[0].foo.bar | $.universe[1].baz")))
-    (is (= [["store" "book" 4 "author"]]
-           (p/speculate-paths goessner-ex "$.store.book[*].author")))
-    (is (= [["store" "book" 4 "isbn"]]
-           (p/speculate-paths goessner-ex "$.store.book[*].isbn")))
-    (is (= [["context" "contextActivities" "grouping" 0]]
-           (p/speculate-paths long-statement
-                              "$.context.contextActivities.grouping[*]")))
-    (is (= [["context" "contextActivities" "grouping" 0]]
-           (p/speculate-paths long-statement
-                              "$.context.contextActivities.grouping[0]")))
-    (is (= [["context" "contextActivities" "grouping" 0 "id"]]
-           (p/speculate-paths long-statement
-                              "$.context.contextActivities.grouping[*].id")))
-    (is (= [["context" "contextActivities" "category" 1 "id"]]
-           (p/speculate-paths long-statement
-                              "$.context.contextActivities.category[*].id")))
-    (is (strict-parse-failed?
-         (p/get-paths goessner-ex "$.store.bicycle..*")))))
-
 (deftest get-values-test-1
   (testing "Testing JSONPath on example provided by Goessner"
     (are [expected path]
@@ -498,10 +429,74 @@
            (p/excise long-statement
                      "$.context.contextActivities.grouping[*]")))))
 
-(comment
-  (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]}
-                 "$.universe[1].*"
-                 2))
+(deftest speculate-paths-test
+  (testing "Enumerate deterministic JSONPaths regardless of values present"
+    (is (= [["foo"]]
+           (p/speculate-paths nil "$.foo")))
+    (is (= [[0]]
+           (p/speculate-paths [] "$[0]")))
+    (is (= [["universe" 2 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar")))
+    (is (= [["universe" 2 "foo" "bar"]
+            ["universe" 3 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-limit 2})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "foo" "bar"]
+            ["universe" 2 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   3})))
+    (is (= [["universe" 0 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   1})))
+    (is (= []
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   -1})))
+    (is (= []
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? true
+                               :wildcard-limit   -1})))
+    (is (= (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe[0].foo.bar")
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe[0].foo.bar | $.universe[1].baz"
+                              {:first? true})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "baz"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe[0].foo.bar | $.universe[1].baz")))
+    (is (= [["store" "book" 4 "author"]]
+           (p/speculate-paths goessner-ex "$.store.book[*].author")))
+    (is (= [["store" "book" 4 "isbn"]]
+           (p/speculate-paths goessner-ex "$.store.book[*].isbn")))
+    (is (= [["context" "contextActivities" "grouping" 0]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.grouping[*]")))
+    (is (= [["context" "contextActivities" "grouping" 0]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.grouping[0]")))
+    (is (= [["context" "contextActivities" "grouping" 0 "id"]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.grouping[*].id")))
+    (is (= [["context" "contextActivities" "category" 1 "id"]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.category[*].id")))
+    (is (strict-parse-failed?
+         (p/get-paths goessner-ex "$.store.bicycle..*")))))
 
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
