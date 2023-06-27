@@ -31,21 +31,19 @@
       (and (not= :vec-lower start) (not= :vec-higher end)))))
 
 (defn- valid-recursive-descent?
-  "Returns false if the path vector does not have a '.. symbol followed
-   by no children or another '.., true otherwise."
+  "Returns `false` if the `path` vector has an invalid `..` symbol, ie. followed
+   by no children or another `..`, `true` otherwise."
   [path]
-  ;; Could be made cleaner using seq combinators but this is a quick and
-  ;; dirty solution.
+  ;; Could be made cleaner using seq combinators but this works too
   (loop [path path]
-    (if-let [elem (first path)]
-      (if (= '.. elem)
-        (if-let [elem' (second path)]
-          (if (not= '.. elem')
-            (recur (rest (rest path)))
-            false)
-          false)
-        (recur (rest path)))
-      true)))
+    (let [elem-1 (first path)
+          elem-2 (second path)]
+      (cond
+        (nil? elem-1)     true ; end of path
+        (not= '.. elem-1) (recur (rest path))
+        (nil? elem-2)     false ; `..` must have children afterwards
+        (= '.. elem-2)    false ; `..` cannot be followed by another `..`
+        :else             (recur (rest (rest path)))))))
 
 ;; Non-strict paths ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
