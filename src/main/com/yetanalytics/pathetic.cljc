@@ -199,67 +199,6 @@
   ([json paths opts-map]
    (get-paths* json (parse-paths paths opts-map) opts-map)))
 
-;; Speculate Paths ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(s/fdef speculate-paths*
-  :args (s/cat :json ::json/json
-               :paths ::path/strict-paths
-               :opts-map (s/? (s/keys :opt-un [::wildcard-append?
-                                               ::wildcard-limit])))
-  :ret (s/every ::json/path))
-
-(defn speculate-paths*
-  "Like `speculate-paths`, but except that the `paths` argument is a
-   vector of already-parsed JSONPaths.
-   
-   The following `opts-map` fields are supported:
-   - `:wildcard-append?` Dictates if wildcard values should be appended to
-                         the end of existing seqs instead of overwriting
-                         existing values. Default `true`.
-   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
-                         In overwrite mode, defaults to the length of each coll.
-                         In append mode, defaults to `1`."
-  ([json paths]
-   (speculate-paths* json paths {}))
-  ([json paths opts-map]
-   (let [{:keys [wildcard-append? wildcard-limit]
-          :or {wildcard-append? true}}
-         opts-map
-         wildcard-limit
-         (or wildcard-limit
-             (and wildcard-append? 1))
-         enum-paths
-         (fn [path]
-           (->> (path/speculative-path-seqs json
-                                            path
-                                            wildcard-append?
-                                            wildcard-limit)
-                (mapv :path)))]
-     (->> paths (mapcat enum-paths) distinct vec))))
-
-(defn speculate-paths
-  "Given `json` and a JSONPath string `paths`, return a vector of
-   definite key paths, just like `get-paths`. However, unlike `get-paths`,
-   paths will be enumerated even if the corresponding value does not exist
-   in `json` on that path; in other words, it speculates what paths would
-   exist if they are applied. If the string contains multiple JSONPaths, we
-   return the key paths for all strings.
-   
-   The following `opts-map` fields are supported:
-   - `:first?`           Only apply the first \"|\"-separated path.
-   - `:strict?`          Always set to `true` regardless of value provided.
-   - `:wildcard-append?` Dictates if wildcard values should be appended to
-                         the end of existing seqs instead of overwriting
-                         existing values. Default `true`.
-   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
-                         In overwrite mode, defaults to the length of each coll.
-                         In append mode, defaults to `1`"
-  ([json paths]
-   (speculate-paths json paths {}))
-  ([json paths opts-map]
-   (let [opts-map* (assoc opts-map :strict? true)]
-     (speculate-paths* json (parse-paths paths opts-map*) opts-map*))))
-
 ;; Get Values ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Originally "get-at"
@@ -470,6 +409,67 @@
    (excise* json (parse-paths paths)))
   ([json paths opts-map]
    (excise* json (parse-paths paths opts-map) opts-map)))
+
+;; Speculate Paths ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(s/fdef speculate-paths*
+  :args (s/cat :json ::json/json
+               :paths ::path/strict-paths
+               :opts-map (s/? (s/keys :opt-un [::wildcard-append?
+                                               ::wildcard-limit])))
+  :ret (s/every ::json/path))
+
+(defn speculate-paths*
+  "Like `speculate-paths`, but except that the `paths` argument is a
+   vector of already-parsed JSONPaths.
+   
+   The following `opts-map` fields are supported:
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `true`.
+   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to `1`."
+  ([json paths]
+   (speculate-paths* json paths {}))
+  ([json paths opts-map]
+   (let [{:keys [wildcard-append? wildcard-limit]
+          :or {wildcard-append? true}}
+         opts-map
+         wildcard-limit
+         (or wildcard-limit
+             (and wildcard-append? 1))
+         enum-paths
+         (fn [path]
+           (->> (path/speculative-path-seqs json
+                                            path
+                                            wildcard-append?
+                                            wildcard-limit)
+                (mapv :path)))]
+     (->> paths (mapcat enum-paths) distinct vec))))
+
+(defn speculate-paths
+  "Given `json` and a JSONPath string `paths`, return a vector of
+   definite key paths, just like `get-paths`. However, unlike `get-paths`,
+   paths will be enumerated even if the corresponding value does not exist
+   in `json` on that path; in other words, it speculates what paths would
+   exist if they are applied. If the string contains multiple JSONPaths, we
+   return the key paths for all strings.
+   
+   The following `opts-map` fields are supported:
+   - `:first?`           Only apply the first \"|\"-separated path.
+   - `:strict?`          Always set to `true` regardless of value provided.
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `true`.
+   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to `1`"
+  ([json paths]
+   (speculate-paths json paths {}))
+  ([json paths opts-map]
+   (let [opts-map* (assoc opts-map :strict? true)]
+     (speculate-paths* json (parse-paths paths opts-map*) opts-map*))))
 
 ;; Apply Value(s) ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
