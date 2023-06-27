@@ -167,41 +167,46 @@
         step  (if (zero? step) 1 step)]
     (range start end step)))
 
-(defn- normalize-indices
-  "Normalize indices by doing the following:
+(defn- normalize-elements*
+  [elements json-loc]
+  (let [normalize-elements**
+        (fn [normalized element]
+          (cond
+            ;; JSONPath element is an array splice
+            (map? element)
+            (if (vector? json-loc)
+              (reduce (fn [keys** v] (conj! keys** v))
+                      normalized
+                      (slice->range json-loc element))
+              ;; JSON data is not a vector, return a dummy index such that
+              ;; (get json 0) => nil
+              (conj! normalized 0))
+            ;; JSONPath element is a negative array index
+            ;; Don't clamp normalized neg indices to 0; out of bounds = `nil`
+            (neg-int? element)
+            (conj! normalized (+ (count json-loc) element))
+            ;; JSONPath element is a regular key
+            :else
+            (conj! normalized element)))]
+    (->> elements
+         (reduce normalize-elements** (transient []))
+         persistent!)))
+
+(defn- map-or-neg-int? [x]
+  (or (map? x)
+      (neg-int? x)))
+
+(defn- normalize-elements
+  "Normalize element indices by doing the following:
    - Turn array splices into array index sequences
    - Turn negative array indices into positive ones"
-  [keys json]
-  (letfn [(normalize-elements
-           [keys* element]
-           (cond
-             ;; JSONPath element is an array splice
-             (map? element)
-             (if (vector? json)
-               (reduce (fn [keys** v] (conj! keys** v))
-                       keys*
-                       (slice->range json element))
-               ;; JSON data is not a vector, return a dummy index such that
-               ;; (get json 0) => nil
-               (conj! keys* 0))
-             ;; JSONPath element is a negative array index
-             ;; Don't clamp normalized neg indices to 0; out of bounds = nil
-             (neg-int? element)
-             (conj! keys* (+ (count json) element))
-             ;; JSONPath element is a regular key
-             :else
-             (conj! keys* element)))
-          (normalize-indices*
-           [keys]
-           (->> keys (reduce normalize-elements (transient [])) persistent!))]
-    ;; Optimization: don't normalize if there's only one key or index, and
-    ;; it is not a splice or negative int - the vast majority of cases.
-    (if (= 1 (count keys))
-      (let [k (peek keys)]
-        (if-not (or (map? k) (neg-int? k))
-          keys
-          (normalize-indices* keys)))
-      (normalize-indices* keys))))
+  [elements json-loc]
+  ;; Optimization: don't normalize if there's only one key or index, and
+  ;; it is not a splice or negative int - the vast majority of cases.
+  (if (and (= 1 (count elements))
+           (not (map-or-neg-int? (peek elements))))
+    elements
+    (normalize-elements* elements json-loc)))
 
 ;; Regular Path Enumeration ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -248,7 +253,7 @@
           ;; Vector of keys/indices/slices
           (vector? element)
           (let [element'
-                (normalize-indices element jsn)
+                (normalize-elements element jsn)
                 [worklist' reslist']
                 (reduce
                  (fn [[worklist reslist] sub-elm]
