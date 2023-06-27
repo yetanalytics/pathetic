@@ -206,25 +206,31 @@
   :ret  string?
   :fn   (fn [{:keys [args ret]}] (= (:parsed-path args) (parse-first ret))))
 
+(defn- sub-element->str
+  [sub-element]
+  (cond
+    ;; Array slice
+    (map? sub-element)
+    (let [{:keys [start end step]} sub-element
+          start (if (keyword? start) nil start)
+          end   (if (keyword? end) nil end)]
+      (str start ":" end ":" step))
+    ;; String key
+    (string? sub-element)
+    (str "'" sub-element "'")
+    ;; Integer key
+    :else
+    (str sub-element)))
+
+(defn- element->str
+  [element]
+  (cond
+    (= '* element)  "[*]"
+    (= '.. element) ".."
+    :else (str "[" (->> element (map sub-element->str) (cstr/join ",")) "]")))
+
 (defn path->string
-  "Stringify a parsed path back into a JSONPath string."
+  "Stringify a parsed path back into a JSONPath string, using brackets
+   for all keys."
   [parsed-path]
-  (letfn [(sub-elem->str
-            [sub-elm]
-            (cond
-              (map? sub-elm)
-              (let [{:keys [start end step]} sub-elm
-                    start (if (keyword? start) nil start)
-                    end   (if (keyword? end) nil end)]
-                (str start ":" end ":" step))
-              (string? sub-elm)
-              (str "'" sub-elm "'")
-              :else
-              (str sub-elm)))
-          (elem->str
-            [elm]
-            (cond
-              (= '* elm) "[*]"
-              (= '.. elm) ".."
-              :else (str "[" (cstr/join "," (map sub-elem->str elm)) "]")))]
-    (str "$" (cstr/join (map elem->str parsed-path)))))
+  (->> parsed-path (map element->str) cstr/join (str "$")))
