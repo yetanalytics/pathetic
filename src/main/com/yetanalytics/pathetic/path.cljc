@@ -359,7 +359,8 @@
       (coll? jsn)
       (range (or wildcard-limit
                  (count-safe jsn)))
-      :else [0])))
+      :else
+      (range (or wildcard-limit 1)))))
 
 ;; Main function
 
