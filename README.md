@@ -336,7 +336,7 @@ The following `opts-map` fields are supported:
 
 Useful functions can be found in other namespaces.
 
-### json-path/parse
+### pathetic.parse/parse
 
 ```
 "Given a JSON-path, parse it into data. Returns a vector of parsed
@@ -349,7 +349,7 @@ invalid."
 => [[["foo"]] [* ["bar"]]]
 ```
 
-### json-path/parse-first
+### pathetic.parse/parse-first
 
 ```
 Same as `parse`, but returns the first parsed JSON-path, or `nil`
@@ -361,7 +361,7 @@ if the paths are invalid.
 => [["foo"]]
 ```
 
-### json-path/path->string
+### pathetic.parse/path->string
 
 ```
 Stringify a parsed path back into a JSONPath string.
@@ -370,6 +370,25 @@ Stringify a parsed path back into a JSONPath string.
 ```clojure
 (path->string [* ["books"]])
 => "$[*]['books']"
+```
+
+### pathetic.path/path-seqs
+
+```
+Given a JSON object and a parsed JSONPath, return a seq of maps with the following fields:
+
+  :json  the JSON value at the JSONPath location.
+  :path  the definite JSONPath that was traversed.
+  :fail  if the JSONPath traversal failed due to missing keys or indices
+```
+
+### pathetic.path/speculative-path-seqs
+
+```
+Similar to `path-seqs`, except it continues traversing the path even if
+the location in the JSON data is missing or incompatible. Returns the
+same fields as path-seqs except for `:fail`. Accepts `wildcard-append?`
+and `wildcard-limit` arguments.
 ```
 
 ## License
