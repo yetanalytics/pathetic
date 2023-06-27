@@ -590,8 +590,9 @@
                                 wildcard-limit (take wildcard-limit))
                               (coll? jsn)
                               (range (or wildcard-limit
-                                         (count-safe jsn)))
-                              :else [0]))
+                                         (count jsn)))
+                              :else
+                              (range (or wildcard-limit 1))))
                 worklist' (reduce
                            (fn [worklist idx]
                              (conj worklist

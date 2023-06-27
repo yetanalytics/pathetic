@@ -637,6 +637,10 @@
                                      :wildcard-limit   2}
       {"foo" [1 0 0]}     [1 2]     {:wildcard-append? false
                                      :wildcard-limit   1}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   0}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   -1}
       {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true}
       {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true
                                      :wildcard-limit   3}
@@ -645,7 +649,36 @@
       {"foo" [0 0 0 1]}   [1 2]     {:wildcard-append? true
                                      :wildcard-limit   1}
       {"foo" [0 0 0]}     [1 2]     {:wildcard-append? true
-                                     :wildcard-limit   0})))
+                                     :wildcard-limit   0}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   -1})
+    (are [expected values opt-args]
+         (= expected
+            (p/apply-multi-value {"foo" 0} "$.foo.*" values opt-args))
+      {"foo" [1 2]}   [1 2]   {}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? false}
+      {"foo" [1 2 3]} [1 2 3] {:wildcard-append? false}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? false
+                               :wildcard-limit   3}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? false
+                               :wildcard-limit   2}
+      {"foo" [1]}     [1 2]   {:wildcard-append? false
+                               :wildcard-limit   1}
+      {"foo" 0}       [1 2]   {:wildcard-append? false
+                               :wildcard-limit   0}
+      {"foo" 0}       [1 2]   {:wildcard-append? false
+                               :wildcard-limit   -1}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? true}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? true
+                               :wildcard-limit   3}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? true
+                               :wildcard-limit   2}
+      {"foo" [1]}     [1 2]   {:wildcard-append? true
+                               :wildcard-limit   1}
+      {"foo" 0}       [1 2]   {:wildcard-append? true
+                               :wildcard-limit   0}
+      {"foo" 0}       [1 2]   {:wildcard-append? true
+                               :wildcard-limit   -1})))
 
 (deftest gen-tests
   (testing "Generative tests for pathetic"
