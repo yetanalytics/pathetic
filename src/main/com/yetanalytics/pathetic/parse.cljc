@@ -7,7 +7,7 @@
             [clojure.string     :as cstr]
             [clojure.walk       :as w]
             [instaparse.core    :as insta]
-            [com.yetanalytics.pathetic.json-path :as path]))
+            [com.yetanalytics.pathetic.path :as path]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs

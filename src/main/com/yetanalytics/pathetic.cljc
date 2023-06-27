@@ -1,9 +1,9 @@
 (ns com.yetanalytics.pathetic
-  (:require [clojure.spec.alpha                  :as s]
-            [clojure.spec.gen.alpha              :as sgen]
-            [com.yetanalytics.pathetic.json      :as json]
-            [com.yetanalytics.pathetic.json-path :as json-path]
-            [com.yetanalytics.pathetic.parse     :as parse]))
+  (:require [clojure.spec.alpha              :as s]
+            [clojure.spec.gen.alpha          :as sgen]
+            [com.yetanalytics.pathetic.json  :as json]
+            [com.yetanalytics.pathetic.path  :as path]
+            [com.yetanalytics.pathetic.parse :as parse]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs
@@ -160,7 +160,7 @@
 
 (s/fdef get-paths*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?])))
   :ret (s/every ::json/path))
 
@@ -178,7 +178,7 @@
          opts-map
          enum-paths
          (fn [path]
-           (->> (json-path/path-seqs json path)
+           (->> (path/path-seqs json path)
                 (filter-missing (not return-missing?))
                 (mapv :path)))]
      (->> paths (mapcat enum-paths) distinct vec))))
@@ -206,7 +206,7 @@
 
 (s/fdef speculate-paths*
   :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
+               :paths ::path/strict-paths
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
   :ret (s/every ::json/path))
@@ -233,10 +233,10 @@
              (and wildcard-append? 1))
          enum-paths
          (fn [path]
-           (->> (json-path/speculative-path-seqs json
-                                                 path
-                                                 wildcard-append?
-                                                 wildcard-limit)
+           (->> (path/speculative-path-seqs json
+                                            path
+                                            wildcard-append?
+                                            wildcard-limit)
                 (mapv :path)))]
      (->> paths (mapcat enum-paths) distinct vec))))
 
@@ -269,7 +269,7 @@
 
 (s/fdef get-values*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?
                                                ::return-duplicates?])))
   :ret (s/every ::json/json :kind vector?))
@@ -291,7 +291,7 @@
          opts-map
          enum-jsons
          (fn [path]
-           (->> (json-path/path-seqs json path)
+           (->> (path/path-seqs json path)
                 (filter-missing (not return-missing?))
                 (mapv :json)))
          remove-dupes
@@ -322,7 +322,7 @@
 
 (s/fdef get-path-value-map*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?])))
   :ret (s/every-kv ::json/path ::json/json))
 
@@ -342,7 +342,7 @@
          enum-json-kv
          (fn [path]
            (->> path
-                (json-path/path-seqs json)
+                (path/path-seqs json)
                 (filter-missing (not return-missing?))
                 (reduce (fn [acc {jsn :json pth :path}] (assoc! acc pth jsn))
                         (transient {}))
@@ -373,7 +373,7 @@
 
 (s/fdef select-keys-at*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths)
+               :paths ::path/paths)
   :ret ::json/json)
 
 (defn select-keys-at*
@@ -389,7 +389,7 @@
                         (json/jassoc-in json (butlast pth) {})
                         (json/jassoc-in json pth jsn)))
                     {}
-                    (json-path/path-seqs json path)))]
+                    (path/path-seqs json path)))]
     (->> paths (map enum-maps) (mapv int-maps->vectors))))
 
 (defn select-keys-at
@@ -414,7 +414,7 @@
 
 (s/fdef excise*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::prune-empty?])))
   :ret ::json/json)
 
@@ -440,7 +440,7 @@
              (dissoc coll k)))
          paths'
          (->> paths
-              (map (partial json-path/path-seqs json))
+              (map (partial path/path-seqs json))
               (apply concat)
               ;; Don't excise failed paths
               (filterv (complement :fail))
@@ -480,7 +480,7 @@
 
 (s/fdef apply-value*
   :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
+               :paths ::path/strict-paths
                :value ::json/json
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
@@ -511,10 +511,10 @@
              (and wildcard-append? 1))
          ;; Paths and values
          path-fn   (fn [path]
-                     (json-path/speculative-path-seqs json
-                                                      path
-                                                      wildcard-append?
-                                                      wildcard-limit))
+                     (path/speculative-path-seqs json
+                                                 path
+                                                 wildcard-append?
+                                                 wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (mapv (fn [p] [p value]) paths*)]
      (reduce (fn [json [path v]] (json/jassoc-in json path v))
@@ -559,7 +559,7 @@
 
 (s/fdef apply-multi-value*
   :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
+               :paths ::path/strict-paths
                :value (s/coll-of ::json/json :gen-max 5)
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
@@ -591,10 +591,10 @@
          (or wildcard-limit (count value))
          ;; Paths and values
          path-fn   (fn [path]
-                     (json-path/speculative-path-seqs json
-                                                      path
-                                                      wildcard-append?
-                                                      wildcard-limit))
+                     (path/speculative-path-seqs json
+                                                 path
+                                                 wildcard-append?
+                                                 wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (mapv (fn [p va] [p va]) paths* value)]
      (reduce (fn [json [path v]] (json/jassoc-in json path v))

@@ -3,7 +3,7 @@
             [clojure.test.check]
             [clojure.test.check.properties]
             [clojure.spec.test.alpha :as stest]
-            [com.yetanalytics.pathetic.json-path :as json-path]))
+            [com.yetanalytics.pathetic.path :as path]))
 
 ;; Note: path-seqs and speculative-path-seqs are tested indirectly in
 ;; pathetic-test.
@@ -13,8 +13,8 @@
 (deftest gen-tests
   (testing "Generative tests for json-path"
     (let [results
-          (stest/check `[json-path/path-seqs
-                         json-path/speculative-path-seqs]
+          (stest/check `[path/path-seqs
+                         path/speculative-path-seqs]
                        {:clojure.spec.test.check/opts
                         {:num-tests #?(:clj 100 :cljs 20)
                          :seed (rand-int 2000000000)}})

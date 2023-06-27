@@ -1,4 +1,6 @@
-(ns com.yetanalytics.pathetic.json-path
+(ns com.yetanalytics.pathetic.path
+  "Functions that work with parsed paths, specifically path enumeration over
+   JSON values."
   (:require [clojure.spec.alpha     :as s]
             [clojure.spec.gen.alpha :as sgen]
             [com.yetanalytics.pathetic.json :as json]))
