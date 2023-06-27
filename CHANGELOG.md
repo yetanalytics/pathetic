@@ -1,6 +1,6 @@
 # Change Log
 
-## 0.5.0 - 2023-06-27
+## 0.5.0 - 2023-06-28
 - Update the `apply-value` function to support the following optional args:
   - `:wildcard-append?`: Dictates if wildcard values should be appended to the end of existing seqs. Default `false`. (_NOTE:_ The new default constitutes a breaking change!)
   - `:wildcard-limit`: Dictates how many wildcard paths should be generated. If it is not present then the entire coll gets overwritten at each wildcard location if `wildcard-append?` is `false`; if it's `true`, 1 new path gets appended.
