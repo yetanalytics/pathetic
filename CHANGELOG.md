@@ -4,10 +4,16 @@
 - Update the `apply-value` function to support the following optional args:
   - `:wildcard-append?`: Dictates if wildcard values should be appended to the end of existing seqs. Default `false`. (_NOTE:_ The new default constitutes a breaking change!)
   - `:wildcard-limit`: Dictates how many wildcard paths should be generated. If it is not present then the entire coll gets overwritten at each wildcard location if `wildcard-append?` is `false`; if it's `true`, 1 new path gets appended.
-  - Change the
 - Add a `apply-multi-value` that is similar to `apply-value`, except that it must accept a collection of `values` that will be applied in order. Returns the modified `json` once `values` or the available path seqs runs out. Also accepts `:wildcard-append?` and `wildcard-limit`.
 - Add a `speculate-paths` function that acts like `get-paths` but is not stopped by missing values. Also accepts `:wildcard-append?` and `:wildcard-limit` opt args.
 - Add `wildcard-append` and `wildcard-limit` args to `json-path/speculate-path-seqs`.
+- Namespace refactors:
+  - Change `pathetic.json-path` to `pathetic.path`
+  - Move the following from `pathetic.path` to `pathetic.parse`:
+    - `parse`, `parse-first`, and related functions and vars
+    - `is-parse-failure?`, `test-strict-path`, and `path->str` auxillary functions
+    - `::parse-failure` and related Instaparse failure specs
+- Various refactors of internal function implementations.
 
 ## 0.4.1 - 2022-10-24
 - Update GitHub CI and CD to remove deprecation warnings.
