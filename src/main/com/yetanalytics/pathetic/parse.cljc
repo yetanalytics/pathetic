@@ -119,17 +119,17 @@
   [parsed]
   (if (coll? parsed)
     (case (first parsed)
-      :jsonpaths  (->> parsed rest vec)
-      :jsonpath   (->> parsed rest (apply concat) vec)
-      :child      (->> parsed rest vec)
+      :jsonpaths     (->> parsed rest vec)
+      :jsonpath      (->> parsed rest (apply concat) vec)
+      :child         (->> parsed rest vec)
       :bracket-union (-> parsed rest flatten vec)
       ;; Child nodes
-      :array-slice (slice-list->slice-map (apply vector (rest parsed)))
-      :identifier  [(second parsed)]
+      :array-slice    (slice-list->slice-map (apply vector (rest parsed)))
+      :identifier     [(second parsed)]
       :string-literal [(-> parsed second unquote-str)]
-      :int-literal [(-> parsed second str->int)]
-      :wildcard '*
-      :double-dot '..)
+      :int-literal    [(-> parsed second str->int)]
+      :wildcard       '*
+      :double-dot     '..)
     parsed))
 
 (defn instaparse->pathetic
