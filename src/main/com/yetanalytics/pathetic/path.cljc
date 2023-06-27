@@ -132,11 +132,6 @@
                    :strict? strict?
                    :element element})))
 
-(defn- count-safe
-  "Like `count` but returns 0 instead of throwing if `coll` is a scalar."
-  [coll]
-  (if (coll? coll) (count coll) 0))
-
 (defn- get-safe
   "Get a value only if `coll` is an actual coll (i.e. not a string)."
   [coll k]
@@ -347,18 +342,17 @@
   [jsn wildcard-append? wildcard-limit]
   (if wildcard-append?
     ;; append mode
-    (cond->> (range (count-safe jsn)
-                    (+ (count-safe jsn)
-                       (or wildcard-limit 1)))
-      (map? jsn) (map str))
+    (let [start (if (coll? jsn) (count jsn) 0)
+          end   (+ start (or wildcard-limit 1))]
+      (cond->> (range start end)
+        (map? jsn) (map str)))
     ;; overwrite mode
     (cond
       (map? jsn)
       (cond->> (sort (keys jsn))
         wildcard-limit (take wildcard-limit))
       (coll? jsn)
-      (range (or wildcard-limit
-                 (count-safe jsn)))
+      (range (or wildcard-limit (count jsn)))
       :else
       (range (or wildcard-limit 1)))))
 
