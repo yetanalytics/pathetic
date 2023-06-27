@@ -54,6 +54,8 @@ argument; common fields in `opts-map` include:
 - `:return-missing?` - Return paths and/or values at locations not found in the JSONPath object. Missing values are returned as `nil`. Default false.
 - `:return-duplicates?` - Return duplicate values from a JSONPath object. Default true.
 - `:prune-empty?` - Remove empty collections and values from a JSONPath object after having values excised. Default false.
+- `:wildcard-append?` Dictates if wildcard values should be appended to the end of existing seqs instead of overwriting existing values. Default true.
+- `:wildcard-limit?` Dictates how many wildcard paths should be generated. In overwrite mode, defaults to the length of each coll encountered. In append mode, the default depends on the function (either `1` or, for `apply-multi-value`, the number of values).
 
 Each function has two versions: a regular and a starred version. The regular versions accept JSONPath strings, while the starred versions accept parsed paths (which is useful in performance-critical situations). The starred versions do not accept `:first?` or `:strict?` as `opts-map` fields.
 
