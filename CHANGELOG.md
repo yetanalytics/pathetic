@@ -1,6 +1,7 @@
 # Change Log
 
 ## 0.5.0 - 2023-06-28
+- Remove `clojure`, `clojurescript`, and `data.json` as library dependencies.
 - Update the `apply-value` function to support the following optional args:
   - `:wildcard-append?`: Dictates if wildcard values should be appended to the end of existing seqs. Default `false`. (_NOTE:_ The new default constitutes a breaking change!)
   - `:wildcard-limit`: Dictates how many wildcard paths should be generated. If it is not present then the entire coll gets overwritten at each wildcard location if `wildcard-append?` is `false`; if it's `true`, 1 new path gets appended.
@@ -13,6 +14,7 @@
     - `parse`, `parse-first`, and related functions and vars
     - `is-parse-failure?`, `test-strict-path`, and `path->str` auxillary functions
     - `::parse-failure` and related Instaparse failure specs
+- Include the stringified path element in the `::illegal-path-element` exception message.
 - Various refactors of internal function implementations.
 
 ## 0.4.1 - 2022-10-24

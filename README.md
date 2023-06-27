@@ -8,12 +8,10 @@ Utility Library for working with [JSON Path](https://goessner.net/articles/JsonP
 
 ## Installation
 
-Add the following to your `:deps` map in your deps.edn file:
+Add the following to your `:deps` map in your `deps.edn` file:
 
 ```clojure
-com.yetanalytics/pathetic {:mvn/version "0.5.0"
-                           :exclusions [org.clojure/clojure
-                                        org.clojure/clojurescript]}
+com.yetanalytics/pathetic {:mvn/version "0.5.0"}
 ```
 
 ## Data

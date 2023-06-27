@@ -1,16 +1,19 @@
 {:paths ["src/main"]
- :deps {org.clojure/clojure          {:mvn/version "1.10.2"}
-        org.clojure/clojurescript    {:mvn/version "1.10.764"
-                                      :exclusions  [org.clojure/data.json]}
-        org.clojure/core.match       {:mvn/version "0.3.0"}
-        org.clojure/data.json        {:mvn/version "0.2.7"}
-        instaparse/instaparse        {:mvn/version "1.4.10"}}
+ :deps {org.clojure/core.match {:mvn/version "0.3.0"}
+        instaparse/instaparse  {:mvn/version "1.4.10"}}
  :aliases
  {:dev
-  {:extra-deps {cider/piggieback {:mvn/version "0.5.2"}}}
+  {:extra-deps {org.clojure/clojure       {:mvn/version "1.10.2"}
+                org.clojure/clojurescript {:mvn/version "1.10.764"
+                                           :exclusions  [org.clojure/data.json]}
+                cider/piggieback          {:mvn/version "0.5.2"}}}
   :test
   {:extra-paths ["dev-resources" "src/test"]
-   :extra-deps  {org.clojure/test.check {:mvn/version "1.1.0"}}}
+   :extra-deps  {org.clojure/clojure       {:mvn/version "1.10.2"}
+                 org.clojure/clojurescript {:mvn/version "1.10.764"
+                                            :exclusions  [org.clojure/data.json]}
+                 org.clojure/data.json     {:mvn/version "0.2.7"}
+                 org.clojure/test.check    {:mvn/version "1.1.0"}}}
   :runner-clj
   {:extra-deps {com.cognitect/test-runner
                 {:git/url "https://github.com/cognitect-labs/test-runner"
