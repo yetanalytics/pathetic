@@ -243,25 +243,28 @@
                                :path []
                                :desc false})
          reslist  (transient [])]
-    (if-let [{jsn :json rst :rest pth :path dsc :desc} (peek worklist)]
-      (if-let [element (first rst)]
+    (if-let [{json-loc    :json
+              path-prefix :path
+              path-rest   :rest
+              rec-desc?   :desc} (peek worklist)]
+      (if-let [element (first path-rest)]
         ;; We order the conditions heuristically based on likelihood of
         ;; encounter, in order to minimize equivalent operations
         (cond
           ;; Short circuit: if json is a primitive or `nil` stop traversal
-          (not (coll? jsn))
+          (not (coll? json-loc))
           (let [worklist' (pop worklist)
                 reslist'  (cond-> reslist
-                            (not dsc) ; Mark failure if not recursive descent
+                            (not rec-desc?) ; Mark failure if not recursive desc
                             (conj! {:json nil
-                                    :path pth
+                                    :path path-prefix
                                     :fail true}))]
             (recur worklist' reslist'))
           
           ;; Vector of keys/indices/slices
           (vector? element)
           (let [element'
-                (normalize-elements element jsn)
+                (normalize-elements element json-loc)
                 [worklist' reslist']
                 (reduce
                  (fn [[worklist reslist] sub-element]
@@ -269,20 +272,20 @@
                      ;; Element exists in JSON location
                      ;; Need to separate `contains?` from `get` to distinguish
                      ;; nil values from non-existent ones in the coll.
-                     (contains? jsn sub-element)
-                     [(conj worklist {:json (get-safe jsn sub-element)
-                                      :rest (rest rst)
-                                      :path (conj pth sub-element)
+                     (contains? json-loc sub-element)
+                     [(conj worklist {:json (get-safe json-loc sub-element)
+                                      :rest (rest path-rest)
+                                      :path (conj path-prefix sub-element)
                                       :desc false})
                       reslist]
-                     ;; Recursive desc: don't add missing keys
-                     dsc
+                     ;; Recursive descent: don't add missing keys
+                     rec-desc?
                      [worklist reslist]
                      ;; Otherwise, mark failure
                      :else
                      [worklist
                       (conj! reslist {:json nil
-                                      :path (conj pth sub-element)
+                                      :path (conj path-prefix sub-element)
                                       :fail true})]))
                  [(pop worklist) reslist]
                  element')]
@@ -291,33 +294,33 @@
           ;; Wildcard
           (= '* element)
           (let [[worklist' reslist']
-                (if (zero? (count jsn))
-                  ;; No children in coll; mark failure
+                (if (zero? (count json-loc))
+                  ;; No children in coll: mark failure
                   [(pop worklist)
                    (conj! reslist {:json nil
-                                   :path pth
+                                   :path path-prefix
                                    :fail true})]
-                  ;; Children in coll; continue
+                  ;; Children in coll: continue
                   [(reduce-kv
                     (fn [worklist key child]
                       (conj worklist {:json child
-                                      :rest (rest rst)
-                                      :path (conj pth key)
+                                      :rest (rest path-rest)
+                                      :path (conj path-prefix key)
                                       :desc false}))
                     (pop worklist)
-                    jsn)
+                    json-loc)
                    reslist])]
             (recur worklist' reslist'))
           
           ;; Recursive descent
           (= '.. element)
-          (let [desc-list (json/recursive-descent jsn)
+          (let [desc-list (json/recursive-descent json-loc)
                 worklist' (reduce
-                           (fn [worklist desc]
+                           (fn [worklist {desc-json :json desc-path :path}]
                              (conj worklist
-                                   {:json (:json desc)
-                                    :rest (rest rst)
-                                    :path (->> desc :path (concat pth) vec)
+                                   {:json desc-json
+                                    :rest (rest path-rest)
+                                    :path (vec (concat path-prefix desc-path))
                                     :desc true}))
                            (pop worklist)
                            desc-list)]
@@ -328,8 +331,8 @@
           (throw-illegal-element element false))
         ;; Path is exhausted; move item from worklist to reslist
         (let [worklist' (pop worklist)
-              reslist'  (conj! reslist {:json jsn
-                                        :path pth
+              reslist'  (conj! reslist {:json json-loc
+                                        :path path-prefix
                                         :fail false})]
           (recur worklist' reslist')))
       (persistent! reslist))))
@@ -387,8 +390,10 @@
                                :rest json-path
                                :path []})
          reslist  (transient [])]
-    (if-let [{jsn :json rst :rest pth :path} (peek worklist)]
-      (if-let [element (first rst)]
+    (if-let [{json-loc    :json
+              path-prefix :path
+              path-rest   :rest} (peek worklist)]
+      (if-let [element (first path-rest)]
         (cond
           ;; Vector of keys/indices
           (vector? element)
@@ -397,9 +402,9 @@
                              (if (or (string? sub-element)
                                      (nat-int? sub-element))
                                (conj worklist
-                                     {:json (get-safe jsn sub-element)
-                                      :rest (rest rst)
-                                      :path (conj pth sub-element)})
+                                     {:json (get-safe json-loc sub-element)
+                                      :rest (rest path-rest)
+                                      :path (conj path-prefix sub-element)})
                                ;; Non-strict elements like neg indices or slices
                                (throw-illegal-element element true)))
                            (pop worklist)
@@ -408,13 +413,15 @@
 
           ;; Wildcard
           (= '* element)
-          (let [indexes   (wildcard-indexes jsn wildcard-append? wildcard-limit)
+          (let [indexes   (wildcard-indexes json-loc
+                                            wildcard-append?
+                                            wildcard-limit)
                 worklist' (reduce
                            (fn [worklist idx]
                              (conj worklist
                                    {:json nil ; current val doesn't matter
-                                    :rest (rest rst)
-                                    :path (conj pth idx)}))
+                                    :rest (rest path-rest)
+                                    :path (conj path-prefix idx)}))
                            (pop worklist)
                            indexes)]
             (recur worklist' reslist))
@@ -425,7 +432,7 @@
           (throw-illegal-element element true))
         ;; Path is exhausted; move item from worklist to reslist
         (let [worklist' (pop worklist)
-              reslist'  (conj! reslist {:json jsn
-                                        :path pth})]
+              reslist'  (conj! reslist {:json json-loc
+                                        :path path-prefix})]
           (recur worklist' reslist')))
       (persistent! reslist))))
