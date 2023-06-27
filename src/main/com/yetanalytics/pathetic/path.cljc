@@ -114,7 +114,7 @@
   boolean?)
 
 (s/def ::wildcard-limit ; Need `choose` to limit generated int size
-  (s/nilable (s/with-gen int? #(sgen/choose -5 25))))
+  (s/with-gen int? #(sgen/choose -5 25)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Path enumeration
@@ -367,7 +367,7 @@
   :args (s/cat :json ::json/json
                :path ::strict-path
                :wildcard-append? ::wildcard-append?
-               :wildcard-limit   ::wildcard-limit)
+               :wildcard-limit   (s/nilable ::wildcard-limit))
   :ret  (s/every (s/keys :req-un [::json/json ::json/path])
                  :kind vector?))
 

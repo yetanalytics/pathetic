@@ -1,6 +1,5 @@
 (ns com.yetanalytics.pathetic
   (:require [clojure.spec.alpha              :as s]
-            [clojure.spec.gen.alpha          :as sgen]
             [com.yetanalytics.pathetic.json  :as json]
             [com.yetanalytics.pathetic.path  :as path]
             [com.yetanalytics.pathetic.parse :as parse]))
@@ -17,10 +16,8 @@
 (s/def ::return-duplicates? boolean?)
 (s/def ::prune-empty? boolean?)
 (s/def ::multi-value? boolean?)
-
-;; See equivalent specs in json-path namespace
-(s/def ::wildcard-append? boolean?)
-(s/def ::wildcard-limit (s/with-gen int? #(sgen/choose -5 25)))
+(s/def ::wildcard-append? ::path/wildcard-append?)
+(s/def ::wildcard-limit ::path/wildcard-limit)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper functions
