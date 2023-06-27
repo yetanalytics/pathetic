@@ -11,7 +11,7 @@ Utility Library for working with [JSON Path](https://goessner.net/articles/JsonP
 Add the following to your `:deps` map in your deps.edn file:
 
 ```clojure
-com.yetanalytics/pathetic {:mvn/version "0.4.2"
+com.yetanalytics/pathetic {:mvn/version "0.5.0"
                            :exclusions [org.clojure/clojure
                                         org.clojure/clojurescript]}
 ```
@@ -54,6 +54,8 @@ argument; common fields in `opts-map` include:
 - `:return-missing?` - Return paths and/or values at locations not found in the JSONPath object. Missing values are returned as `nil`. Default false.
 - `:return-duplicates?` - Return duplicate values from a JSONPath object. Default true.
 - `:prune-empty?` - Remove empty collections and values from a JSONPath object after having values excised. Default false.
+- `:wildcard-append?` Dictates if wildcard values should be appended to the end of existing seqs instead of overwriting existing values. Default true.
+- `:wildcard-limit?` Dictates how many wildcard paths should be generated. In overwrite mode, defaults to the length of each coll encountered. In append mode, the default depends on the function (either `1` or, for `apply-multi-value`, the number of values).
 
 Each function has two versions: a regular and a starred version. The regular versions accept JSONPath strings, while the starred versions accept parsed paths (which is useful in performance-critical situations). The starred versions do not accept `:first?` or `:strict?` as `opts-map` fields.
 
@@ -197,14 +199,7 @@ in `json` on that path; in other words, it speculates what paths would
 exist if they are applied. If the string contains multiple JSONPaths, we
 return the key paths for all strings.
 
-Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden to `true`. Also accepts the following args:
-
-:wildcard-append? Dictates if wildcard values should be appended to
-                  the end of existing seqs instead of overwriting existing
-                  values. Default `false`.
-:wildcard-limit   Dictates how many wildcard paths should be generated.
-                  In overwrite mode, defaults to the length of each coll.
-                  In append mode, defaults to 1.
+Supports :first? in `opts-map`; :strict? is always overridden to `true`. Also accepts :wildcard-append? and :wildcard-limit args to affect behavior on wildcards.
 ```
 
 ```clojure
@@ -234,34 +229,7 @@ Given `json`, a JSONPath string `paths`, and the JSON data
 the location exists, update the pre-existing value. Otherwise,
 create the necessary data structures needed to contain `value`.
 
-The following caveats apply:
-- If only the root \"$\" is provided, `json` is overwritten in
-  its entirety.
-- If an array index skips over any vector entries, those skipped
-  entries will be assigned nil.
-- If a path contains a wildcard and the location up to that
-  point does not exist, create a new vector.
-- If a path contains a wildcard and the location is a collection,
-  append it to the coll. In the case of maps, the key is its
-  current size, e.g. {\"2\" : \"foo\"}.
-- Recursive descent, array slicing, and negative array indices
-  are disallowed (as per strict mode).
-
-Supports :first? and :multi-value? in `opts-map`. :strict? is always overridden to `true`. Also accepts the following args:
-
-:multi-value?     If provided, then `value` must be a collection of
-                  values that will be applied in order, e.g. for an
-                  array specified by `[0,1]` in the path, then the first
-                  and second elements of `value` will be applied. Returns
-                  the modified `json` once `value` or the available path
-                  seqs runs out.
-:wildcard-append? Dictates if wildcard values should be appended to
-                  the end of existing seqs instead of overwriting existing
-                  values. Default `false`.
-:wildcard-limit   Dictates how many wildcard paths should be generated.
-                  If `multi-value?`, defaults to the number of values.
-                  In overwrite mode, defaults to the length of each coll.
-                  In append mode, defaults to 1.
+Supports :first? in `opts-map`; :strict? is always overridden to `true`. Also accepts :wildcard-append? and :wildcard-limit args to affect behavior on wildcards.
 ```
 
 ``` clojure
@@ -295,17 +263,8 @@ Otherwise, create the necessary data structures needed to contain `value`.
 For example, an array specified by `[0,1]` in the path, then the first
 and second elements of `value` will be applied. Returns the modified
 `json` once `value` or the available path seqs runs out.
-
-The same caveats as `apply-value` apply here as well.
    
-The following `opts-map` fields are supported:
-:first?           Apply only the first \"|\"-separated path. Default false.
-:strict?          Always overrides to true regardless of value provided.
-:wildcard-append? Dictates if wildcard values should be appended to
-                  the end of existing seqs instead of overwriting existing
-                  values. Default `false`.
-:wildcard-limit   Dictates how many wildcard paths should be generated.
-                  Defaults to the number of values.
+Supports :first? in `opts-map`; :strict? is always overridden to `true`. Also accepts :wildcard-append? and :wildcard-limit args to affect behavior on wildcards.
 ```
 
 ```clojure
