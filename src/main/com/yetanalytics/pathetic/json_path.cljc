@@ -126,6 +126,12 @@
   #?(:clj (conj clojure.lang.PersistentQueue/EMPTY init)
      :cljs (conj cljs.core/PersistentQueue.EMPTY init)))
 
+(defn- throw-illegal-element [element strict?]
+  (throw (ex-info (str "Illegal path element: " element)
+                  {:type    ::illegal-path-element
+                   :strict? strict?
+                   :element element})))
+
 (defn- count-safe
   "Like `count` but returns 0 instead of throwing if `coll` is a scalar."
   [coll]
@@ -240,7 +246,7 @@
     (if-let [{jsn :json rst :rest pth :path dsc :desc} (peek worklist)]
       (if-let [element (first rst)]
         ;; We order the conditions heuristically based on likelihood of
-        ;; encounter, in order to minimize equiv operations
+        ;; encounter, in order to minimize equivalent operations
         (cond
           ;; Short circuit: if json is a primitive or `nil` stop traversal
           (not (coll? jsn))
@@ -319,10 +325,7 @@
           
           ;; Unknown path element
           :else
-          (throw (ex-info "Illegal path element"
-                          {:type    ::illegal-path-element
-                           :strict? false
-                           :element element})))
+          (throw-illegal-element element false))
         ;; Path is exhausted; move item from worklist to reslist
         (let [worklist' (pop worklist)
               reslist'  (conj! reslist {:json jsn
@@ -390,17 +393,15 @@
           ;; Vector of keys/indices
           (vector? element)
           (let [worklist' (reduce
-                           (fn [worklist sub-elm]
-                             (if (or (string? sub-elm) (nat-int? sub-elm))
+                           (fn [worklist sub-element]
+                             (if (or (string? sub-element)
+                                     (nat-int? sub-element))
                                (conj worklist
-                                     {:json (get-safe jsn sub-elm)
+                                     {:json (get-safe jsn sub-element)
                                       :rest (rest rst)
-                                      :path (conj pth sub-elm)})
+                                      :path (conj pth sub-element)})
                                ;; Non-strict elements like neg indices or slices
-                               (throw (ex-info "Illegal path element"
-                                               {:type    ::illegal-path-element
-                                                :strict? true
-                                                :element element}))))
+                               (throw-illegal-element element true)))
                            (pop worklist)
                            element)]
             (recur worklist' reslist))
@@ -421,10 +422,7 @@
           ;; Unknown path element
           ;; Includes recursive descent and other non-strict elements
           :else
-          (throw (ex-info "Illegal path element"
-                          {:type    ::illegal-path-element
-                           :strict? true
-                           :element element})))
+          (throw-illegal-element element true))
         ;; Path is exhausted; move item from worklist to reslist
         (let [worklist' (pop worklist)
               reslist'  (conj! reslist {:json jsn
