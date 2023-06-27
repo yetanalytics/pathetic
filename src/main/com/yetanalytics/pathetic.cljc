@@ -491,7 +491,7 @@
                          existing values. Default `false`.
    - `:wildcard-limit`   Dictates the max number of values to applied per coll.
                          In overwrite mode, defaults to the length of each coll.
-                         In append mode, defaults to `1`."
+                         In append mode, defaults to 1."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
@@ -529,7 +529,7 @@
    - If a path contains a wildcard and the location up to that
      point does not exist or is a scalar, create a new vector.
    - If a path contains a wildcard, the location is a collection,
-     and `wildcard-append?` is `true, append it to the coll.
+     and `wildcard-append?` is `true`, append it to the coll.
      In the case of maps, the key is its current size, e.g.
      `{\"2\" : \"foo\"}`.
    - Recursive descent, array slicing, and negative array indices
@@ -543,7 +543,7 @@
                          existing values. Default `false`.
    - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
                          In overwrite mode, defaults to the length of each coll.
-                         In append mode, defaults to `1`."
+                         In append mode, defaults to 1."
   ([json paths value]
    (apply-value json paths value {}))
   ([json paths value opts-map]
@@ -570,7 +570,7 @@
                          existing values. Default `false`.
    - `:wildcard-limit`   Dictates the max number of values to applied per coll.
                          In overwrite mode, defaults to the length of each coll.
-                         In append mode, defaults to `1`."
+                         In append mode, defaults to 1."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
@@ -613,7 +613,7 @@
    - If a path contains a wildcard and the location up to that
      point does not exist or is a scalar, create a new vector.
    - If a path contains a wildcard, the location is a collection,
-     and `wildcard-append?` is `true, append it to the coll.
+     and `wildcard-append?` is `true`, append it to the coll.
      In the case of maps, the key is its current size, e.g.
      `{\"2\" : \"foo\"}`.
    - Recursive descent, array slicing, and negative array indices
@@ -627,7 +627,7 @@
                          existing values. Default `false`.
    - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
                          In overwrite mode, defaults to the length of each coll.
-                         In append mode, defaults to `1`."
+                         In append mode, defaults to 1."
   ([json paths values]
    (apply-multi-value json paths values {}))
   ([json paths values opts-map]
