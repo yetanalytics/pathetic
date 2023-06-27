@@ -1,6 +1,6 @@
 {:paths ["src/main"]
- :deps {org.clojure/core.match {:mvn/version "0.3.0"}
-        instaparse/instaparse  {:mvn/version "1.4.10"}}
+ :deps {org.clojure/core.match {:mvn/version "1.0.1"}
+        instaparse/instaparse  {:mvn/version "1.4.12"}}
  :aliases
  {:dev
   {:extra-deps {org.clojure/clojure       {:mvn/version "1.10.2"}
