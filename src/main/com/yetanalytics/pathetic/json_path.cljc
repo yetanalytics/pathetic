@@ -177,17 +177,15 @@
         step  (if (zero? step) 1 step)]
     (range start end step)))
 
-(defn- normalize-elements*
-  [elements json-loc]
-  (let [normalize-elements**
+(defn- normalize-sub-elements*
+  [sub-elements json-loc]
+  (let [normalize-sub-elements**
         (fn [normalized element]
           (cond
             ;; JSONPath element is an array splice
             (map? element)
             (if (vector? json-loc)
-              (reduce (fn [keys** v] (conj! keys** v))
-                      normalized
-                      (slice->range json-loc element))
+              (reduce conj! normalized (slice->range json-loc element))
               ;; JSON data is not a vector, return a dummy index such that
               ;; (get json 0) => nil
               (conj! normalized 0))
@@ -198,25 +196,25 @@
             ;; JSONPath element is a regular key
             :else
             (conj! normalized element)))]
-    (->> elements
-         (reduce normalize-elements** (transient []))
+    (->> sub-elements
+         (reduce normalize-sub-elements** (transient []))
          persistent!)))
 
 (defn- map-or-neg-int? [x]
   (or (map? x)
       (neg-int? x)))
 
-(defn- normalize-elements
-  "Normalize element indices by doing the following:
+(defn- normalize-sub-elements
+  "Normalize sub-elements (e.g. array indices and map slices) by:
    - Turn array splices into array index sequences
    - Turn negative array indices into positive ones"
-  [elements json-loc]
+  [sub-elements json-loc]
   ;; Optimization: don't normalize if there's only one key or index, and
   ;; it is not a splice or negative int - the vast majority of cases.
-  (if (and (= 1 (count elements))
-           (not (map-or-neg-int? (peek elements))))
-    elements
-    (normalize-elements* elements json-loc)))
+  (if (and (= 1 (count sub-elements))
+           (not (map-or-neg-int? (peek sub-elements))))
+    sub-elements
+    (normalize-sub-elements* sub-elements json-loc)))
 
 ;; Main Function
 
@@ -264,7 +262,7 @@
           ;; Vector of keys/indices/slices
           (vector? element)
           (let [element'
-                (normalize-elements element json-loc)
+                (normalize-sub-elements element json-loc)
                 [worklist' reslist']
                 (reduce
                  (fn [[worklist reslist] sub-element]
