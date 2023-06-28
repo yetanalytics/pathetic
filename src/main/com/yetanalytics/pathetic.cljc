@@ -1,8 +1,8 @@
 (ns com.yetanalytics.pathetic
-  (:require [clojure.spec.alpha                  :as s]
-            [clojure.spec.gen.alpha              :as sgen]
-            [com.yetanalytics.pathetic.json      :as json]
-            [com.yetanalytics.pathetic.json-path :as json-path]))
+  (:require [clojure.spec.alpha              :as s]
+            [com.yetanalytics.pathetic.json  :as json]
+            [com.yetanalytics.pathetic.path  :as path]
+            [com.yetanalytics.pathetic.parse :as parse]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs
@@ -16,10 +16,8 @@
 (s/def ::return-duplicates? boolean?)
 (s/def ::prune-empty? boolean?)
 (s/def ::multi-value? boolean?)
-
-;; See equivalent specs in json-path namespace
-(s/def ::wildcard-append? boolean?)
-(s/def ::wildcard-limit (s/with-gen int? #(sgen/choose -5 25)))
+(s/def ::wildcard-append? ::path/wildcard-append?)
+(s/def ::wildcard-limit ::path/wildcard-limit)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper functions
@@ -28,7 +26,7 @@
 (defn- assert-valid-parse
   "Throw exception if result of json-path/parse is error data."
   [res]
-  (when (json-path/is-parse-failure? res)
+  (when (parse/is-parse-failure? res)
     (throw (ex-info "Cannot parse JSONPath string"
                     (assoc res :type ::invalid-path)))))
 
@@ -37,7 +35,7 @@
    paths fails strict mode."
   [strict? paths]
   (when strict?
-    (when-let [strict-elem (some json-path/test-strict-path paths)]
+    (when-let [strict-elem (some parse/test-strict-path paths)]
       (throw (ex-info "Illegal path element in strict mode"
                       {:type    ::invalid-strict-path
                        :paths   paths
@@ -129,18 +127,18 @@
 (defn parse-paths
   "Given a JSONPath string `paths`, parse the string. Each parsed
    path is a vector of the following elements:
-     '..     recursive descent operator
-     '*      wildcard operator
-     [...]   a vector of strings (keys), integers (array indices), or
-             maps (array slicing operations).
+   - `'..`     Recursive descent operator
+   - `'*`      Wildcard operator
+   - `[...]`   A vector of strings (keys), integers (array indices), or
+               maps (array slicing operations).
    
    The following `opts-map` fields are supported:
-     :first?   Return a singleton vector containing the first path
-               when multiple paths are joined using \"|\". Default
-               false.
-     :strict?  If true, disallows recursive descent, array slicing,
-               and negative indices. Conformant to the xAPI Profile
-               spec. Default false."
+   - `:first?`  Return a singleton vector containing the first path
+                when multiple paths are joined using \"|\". Default
+                `false`.
+   - `:strict?` If true, disallows recursive descent, array slicing,
+                and negative indices. Conformant to the xAPI Profile
+                spec. Default `false`."
   ([paths]
    (parse-paths paths {}))
   ([paths opts-map]
@@ -148,7 +146,7 @@
           :or   {first? false strict? false}}
          opts-map
          res
-         (json-path/parse paths)]
+         (parse/parse paths)]
      (assert-valid-parse res)
      (assert-strict-valid strict? res)
      (if first? (subvec res 0 1) res))))
@@ -159,7 +157,7 @@
 
 (s/fdef get-paths*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?])))
   :ret (s/every ::json/path))
 
@@ -168,8 +166,8 @@
    of already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :return-missing?  Return partial paths for paths that cannot
-                       match any location in `json`. Default false."
+   - `:return-missing?` Return partial paths for paths that cannot
+                        match any location in `json`. Default false."
   ([json paths]
    (get-paths* json paths {}))
   ([json paths opts-map]
@@ -177,7 +175,7 @@
          opts-map
          enum-paths
          (fn [path]
-           (->> (json-path/path-seqs json path)
+           (->> (path/path-seqs json path)
                 (filter-missing (not return-missing?))
                 (mapv :path)))]
      (->> paths (mapcat enum-paths) distinct vec))))
@@ -191,11 +189,11 @@
    strings.
    
    The following `opts-map` fields are supported:
-     :first?           Only apply the first \"|\"-separated path.
-     :strict?          Disallow recursive descent, array slicing,
-                       and negative array indices.
-     :return-missing?  Return partial paths for paths that cannot
-                       match any location in `json`. Default false."
+   - `:first?`          Only apply the first \"|\"-separated path.
+   - `:strict?`         Disallow recursive descent, array slicing, and negative
+                        array indices.
+   - `:return-missing?` Return partial paths for paths that cannot
+                        match any location in `json`. Default `false`."
   ([json paths]
    (get-paths* json (parse-paths paths)))
   ([json paths opts-map]
@@ -207,7 +205,7 @@
 
 (s/fdef get-values*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?
                                                ::return-duplicates?])))
   :ret (s/every ::json/json :kind vector?))
@@ -217,10 +215,10 @@
    of already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :return-missing?     Return values that cannot be found in `json`
-                          data as nil. Default false.
-     :return-duplicates?  Return duplicate values in the result.
-                          Default true."
+   - `:return-missing?`    Return values that cannot be found in `json`
+                           data as `nil`. Default `false`.
+   - `:return-duplicates?` Return duplicate values in the result.
+                           Default `true`."
   ([json paths]
    (get-values* json paths {}))
   ([json paths opts-map]
@@ -229,7 +227,7 @@
          opts-map
          enum-jsons
          (fn [path]
-           (->> (json-path/path-seqs json path)
+           (->> (path/path-seqs json path)
                 (filter-missing (not return-missing?))
                 (mapv :json)))
          remove-dupes
@@ -242,13 +240,13 @@
    the union of all these values.
    
    The following `opts-map` fields are supported:
-     :first?              Only apply the first \"|\"-separated path.
-     :strict?             Disallow recursive descent, array slicing,
-                          and negative array indices.
-     :return-missing?     Return values that cannot be found in `json`
-                          as nil. Default false.
-     :return-duplicates?  Return duplicate values in the result.
-                          Default true."
+   - `:first?`             Only apply the first \"|\"-separated path.
+   - `:strict?`            Disallow recursive descent, array slicing,
+                           and negative array indices.
+   - `:return-missing?`    Return values that cannot be found in `json`
+                           as nil. Default `false`.
+   - `:return-duplicates?` Return duplicate values in the result.
+                           Default `true`."
   ([json paths]
    (get-values* json (parse-paths paths)))
   ([json paths opts-map]
@@ -260,7 +258,7 @@
 
 (s/fdef get-path-value-map*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::return-missing?])))
   :ret (s/every-kv ::json/path ::json/json))
 
@@ -269,9 +267,9 @@
    vector of already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :return-missing?  Return path-value pairs where the path cannot
-                       match any location in the `json` The result val
-                       is returned as nil. Default false."
+   - `:return-missing?` Return path-value pairs where the path cannot
+                        match any location in the `json` The result value
+                        is returned as `nil`. Default `false`."
   ([json paths]
    (get-path-value-map* json paths {}))
   ([json paths opts-map]
@@ -280,7 +278,7 @@
          enum-json-kv
          (fn [path]
            (->> path
-                (json-path/path-seqs json)
+                (path/path-seqs json)
                 (filter-missing (not return-missing?))
                 (reduce (fn [acc {jsn :json pth :path}] (assoc! acc pth jsn))
                         (transient {}))
@@ -294,12 +292,12 @@
    JSON paths to JSON values. Does not return duplicates.
    
    The following `opts-map` fields are supported:
-     :first?           Only apply the first \"|\"-separated path.
-     :strict?          Disallow recursive descent, array slicing,
-                       and negative array indices.
-     :return-missing?  Return path-value pairs where the path cannot
-                       match any location in the `json` The result val
-                       is returned as nil. Default false."
+   - `:first?`          Only apply the first \"|\"-separated path.
+   - `:strict?`         Disallow recursive descent, array slicing,
+                        and negative array indices.
+   - `:return-missing?` Return path-value pairs where the path cannot
+                        match any location in the `json` The result value
+                        is returned as `nil`. Default `false`."
   ([json paths]
    (get-path-value-map* json (parse-paths paths)))
   ([json paths opts-map]
@@ -307,11 +305,9 @@
 
 ;; Select Keys ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; select-keys-at
-
 (s/fdef select-keys-at*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths)
+               :paths ::path/paths)
   :ret ::json/json)
 
 (defn select-keys-at*
@@ -327,7 +323,7 @@
                         (json/jassoc-in json (butlast pth) {})
                         (json/jassoc-in json pth jsn)))
                     {}
-                    (json-path/path-seqs json path)))]
+                    (path/path-seqs json path)))]
     (->> paths (map enum-maps) (mapv int-maps->vectors))))
 
 (defn select-keys-at
@@ -338,10 +334,10 @@
    \"{}\" as the innermost possible value.
    
    The following `opts-map` fields are supported:
-     :first?   Returns only the map corresponding to the first
-               \"|\"-separated path. Default false.
-     :strict?  Disallow recursive descent, array slicing, and negative
-               array indices. Default false."
+   - `:first?`  Returns only the map corresponding to the first
+                \"|\"-separated path.
+   - `:strict?` Disallow recursive descent, array slicing, and negative
+                array indices."
   ([json paths]
    (select-keys-at json paths {}))
   ([json paths opts-map]
@@ -352,7 +348,7 @@
 
 (s/fdef excise*
   :args (s/cat :json ::json/json
-               :paths ::json-path/paths
+               :paths ::path/paths
                :opts-map (s/? (s/keys :opt-un [::prune-empty?])))
   :ret ::json/json)
 
@@ -361,9 +357,9 @@
    already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :prune-empty?  Removes empty maps and vectors, as well as
-                    key-value pairs where values are empty, after the
-                    elements are excised. Default false."
+   - `:prune-empty?` Removes empty maps and vectors, as well as
+                     key-value pairs where values are empty, after the
+                     elements are excised. Default false."
   ([json paths]
    (excise* json paths {}))
   ([json paths opts-map]
@@ -378,7 +374,7 @@
              (dissoc coll k)))
          paths'
          (->> paths
-              (map (partial json-path/path-seqs json))
+              (map (partial path/path-seqs json))
               (apply concat)
               ;; Don't excise failed paths
               (filterv (complement :fail))
@@ -403,12 +399,12 @@
    the elements at the location removed.
    
    The following `opts-map` fields are supported:
-     :first?        Only apply the first \"|\"-separated path.
-     :strict?       Disallow recursive descent, array slicing, and
-                    negative array indices.
-     :prune-empty?  Removes empty maps and vectors, as well as
-                    key-value pairs where values are empty, after the
-                    elements are excised. Default false."
+   - `:first?`       Only apply the first \"|\"-separated path.
+   - `:strict?`      Disallow recursive descent, array slicing, and
+                     negative array indices.
+   - `:prune-empty?` Removes empty maps and vectors, as well as
+                     key-value pairs where values are empty, after the
+                     elements are excised. Default `false`."
   ([json paths]
    (excise* json (parse-paths paths)))
   ([json paths opts-map]
@@ -418,7 +414,7 @@
 
 (s/fdef speculate-paths*
   :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
+               :paths ::path/strict-paths
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
   :ret (s/every ::json/path))
@@ -428,12 +424,12 @@
    vector of already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs instead of overwriting existing
-                       values. Default `true`.
-     :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       In overwrite mode, defaults to the length of each coll.
-                       In append mode, defaults to 1."
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `true`.
+   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to 1."
   ([json paths]
    (speculate-paths* json paths {}))
   ([json paths opts-map]
@@ -445,10 +441,10 @@
              (and wildcard-append? 1))
          enum-paths
          (fn [path]
-           (->> (json-path/speculative-path-seqs json
-                                                 path
-                                                 wildcard-append?
-                                                 wildcard-limit)
+           (->> (path/speculative-path-seqs json
+                                            path
+                                            wildcard-append?
+                                            wildcard-limit)
                 (mapv :path)))]
      (->> paths (mapcat enum-paths) distinct vec))))
 
@@ -461,14 +457,14 @@
    return the key paths for all strings.
    
    The following `opts-map` fields are supported:
-     :first?           Only apply the first \"|\"-separated path.
-     :strict?          Always set to `true`.
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs instead of overwriting existing
-                       values. Default `true`.
-     :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       In overwrite mode, defaults to the length of each coll.
-                       In append mode, defaults to 1"
+   - `:first?`           Only apply the first \"|\"-separated path.
+   - `:strict?`          Always set to `true` regardless of value provided.
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `true`.
+   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to 1"
   ([json paths]
    (speculate-paths json paths {}))
   ([json paths opts-map]
@@ -479,7 +475,7 @@
 
 (s/fdef apply-value*
   :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
+               :paths ::path/strict-paths
                :value ::json/json
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
@@ -490,13 +486,12 @@
    already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs instead of overwriting existing
-                       values. Default `false`.
-     :wildcard-limit   Dictates the max number of values to applied per coll.
-                       If `multi-value?`, defaults to the number of values.
-                       In overwrite mode, defaults to the length of each coll.
-                       In append mode, defaults to 1."
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `false`.
+   - `:wildcard-limit`   Dictates the max number of values to applied per coll.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to 1."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
@@ -510,10 +505,10 @@
              (and wildcard-append? 1))
          ;; Paths and values
          path-fn   (fn [path]
-                     (json-path/speculative-path-seqs json
-                                                      path
-                                                      wildcard-append?
-                                                      wildcard-limit))
+                     (path/speculative-path-seqs json
+                                                 path
+                                                 wildcard-append?
+                                                 wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (mapv (fn [p] [p value]) paths*)]
      (reduce (fn [json [path v]] (json/jassoc-in json path v))
@@ -534,22 +529,21 @@
    - If a path contains a wildcard and the location up to that
      point does not exist or is a scalar, create a new vector.
    - If a path contains a wildcard, the location is a collection,
-     and `wildcard-append?` is `true, append it to the coll.
+     and `wildcard-append?` is `true`, append it to the coll.
      In the case of maps, the key is its current size, e.g.
      `{\"2\" : \"foo\"}`.
    - Recursive descent, array slicing, and negative array indices
      are disallowed (as per strict mode).
    
    The following `opts-map` fields are supported:
-     :first?           Apply only the first \"|\"-separated path. Default false.
-     :strict?          Always overrides to true regardless of value provided.
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs instead of overwriting existing
-                       values. Default `false`.
-     :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       If `multi-value?`, defaults to the number of values.
-                       In overwrite mode, defaults to the length of each coll.
-                       In append mode, defaults to 1."
+   - `:first?`           Apply only the first \"|\"-separated path.
+   - `:strict?`          Always set to `true` regardless of value provided.
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `false`.
+   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to 1."
   ([json paths value]
    (apply-value json paths value {}))
   ([json paths value opts-map]
@@ -560,7 +554,7 @@
 
 (s/fdef apply-multi-value*
   :args (s/cat :json ::json/json
-               :paths ::json-path/strict-paths
+               :paths ::path/strict-paths
                :value (s/coll-of ::json/json :gen-max 5)
                :opts-map (s/? (s/keys :opt-un [::wildcard-append?
                                                ::wildcard-limit])))
@@ -571,13 +565,12 @@
    already-parsed JSONPaths.
    
    The following `opts-map` fields are supported:
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs instead of overwriting existing
-                       values. Default `false`.
-     :wildcard-limit   Dictates the max number of values to applied per coll.
-                       If `multi-value?`, defaults to the number of values.
-                       In overwrite mode, defaults to the length of each coll.
-                       In append mode, defaults to 1."
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `false`.
+   - `:wildcard-limit`   Dictates the max number of values to applied per coll.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to 1."
   ([json paths value]
    (apply-value* json paths value {}))
   ([json paths value opts-map]
@@ -592,10 +585,10 @@
          (or wildcard-limit (count value))
          ;; Paths and values
          path-fn   (fn [path]
-                     (json-path/speculative-path-seqs json
-                                                      path
-                                                      wildcard-append?
-                                                      wildcard-limit))
+                     (path/speculative-path-seqs json
+                                                 path
+                                                 wildcard-append?
+                                                 wildcard-limit))
          paths*    (->> paths (map path-fn) (apply concat) (mapv :path))
          path-vals (mapv (fn [p va] [p va]) paths* value)]
      (reduce (fn [json [path v]] (json/jassoc-in json path v))
@@ -620,22 +613,21 @@
    - If a path contains a wildcard and the location up to that
      point does not exist or is a scalar, create a new vector.
    - If a path contains a wildcard, the location is a collection,
-     and `wildcard-append?` is `true, append it to the coll.
+     and `wildcard-append?` is `true`, append it to the coll.
      In the case of maps, the key is its current size, e.g.
      `{\"2\" : \"foo\"}`.
    - Recursive descent, array slicing, and negative array indices
      are disallowed (as per strict mode).
    
    The following `opts-map` fields are supported:
-     :first?           Apply only the first \"|\"-separated path. Default false.
-     :strict?          Always overrides to true regardless of value provided.
-     :wildcard-append? Dictates if wildcard values should be appended to
-                       the end of existing seqs instead of overwriting existing
-                       values. Default `false`.
-     :wildcard-limit   Dictates how many wildcard paths should be generated.
-                       If `multi-value?`, defaults to the number of values.
-                       In overwrite mode, defaults to the length of each coll.
-                       In append mode, defaults to 1."
+   - `:first?`           Apply only the first \"|\"-separated path.
+   - `:strict?`          Always set to `true` regardless of value provided.
+   - `:wildcard-append?` Dictates if wildcard values should be appended to
+                         the end of existing seqs instead of overwriting
+                         existing values. Default `false`.
+   - `:wildcard-limit`   Dictates how many wildcard paths should be generated.
+                         In overwrite mode, defaults to the length of each coll.
+                         In append mode, defaults to 1."
   ([json paths values]
    (apply-multi-value json paths values {}))
   ([json paths values opts-map]

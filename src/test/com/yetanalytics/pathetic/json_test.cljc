@@ -128,7 +128,7 @@
            (jassoc-in nil [2 3] 3)))))
 
 (deftest gen-tests
-  (testing "Generative tests for json"
+  (testing "Generative tests for json namespace"
     (let [results
           (stest/check `[json/recursive-descent
                          json/jassoc

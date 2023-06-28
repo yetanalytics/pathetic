@@ -1,6 +1,6 @@
 (ns com.yetanalytics.pathetic.json
-  (:require [clojure.spec.alpha :as s]
-            #_[clojure.spec.gen.alpha :as sgen]))
+  "Specs and util functions for JSON value representations."
+  (:require [clojure.spec.alpha :as s]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specs
@@ -67,8 +67,16 @@
                :v ::json)
   :ret  ::coll)
 
+(defn- pad-vector-nils
+  [coll k v]
+  (loop [idx   (count coll)
+         coll' (transient coll)]
+    (if (= idx k)
+      (persistent! (assoc! coll' k v))
+      (recur (inc idx) (assoc! coll' idx nil)))))
+
 (defn jassoc
-  "Like assoc, but with the following differences:
+  "Like `assoc`, but with the following differences:
    - Automatically dispatches on the type of k for colls.
      If k is a string, we assoc the key-val pair to a map,
      otherwise we assoc it to a vector.
@@ -77,17 +85,18 @@
    - If the vector index is out of bounds, we increase the size
      of the vector, filling in skipped entries with nils."
   [coll k v]
-  (cond (string? k)
-        (if (map? coll) (assoc coll k v) (assoc {} k v))
-        (int? k)
-        (let [coll (if (vector? coll) coll [])]
-          (if (< k (count coll))
-            (assoc coll k v)
-            (loop [idx   (count coll)
-                   coll' (transient coll)]
-              (if (= idx k)
-                (persistent! (assoc! coll' k v))
-                (recur (inc idx) (assoc! coll' idx nil))))))))
+  (cond
+    ;; String key - maps
+    (string? k)
+    (if (map? coll)
+      (assoc coll k v)
+      (assoc {} k v))
+    ;; Integer key - vectors
+    (int? k)
+    (let [coll (if (vector? coll) coll [])]
+      (if (< k (count coll))
+        (assoc coll k v)
+        (pad-vector-nils coll k v)))))
 
 (s/fdef jassoc-in
   :args (s/cat :m (s/nilable ::coll)
@@ -96,11 +105,10 @@
   :ret  ::json)
 
 (defn jassoc-in
-  "Like assoc-in, but for jassoc. Returns `v` if the keys seq is
+  "Like `assoc-in`, but for `jassoc`. Returns `v` if the keys seq is
    empty."
   [m [k & ks] v]
-  (if k
-    (if ks
-      (jassoc m k (jassoc-in (get m k) ks v))
-      (jassoc m k v))
-    v))
+  (cond
+    (not k) v
+    ks      (jassoc m k (jassoc-in (get m k) ks v))
+    :else   (jassoc m k v)))
