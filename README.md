@@ -11,7 +11,7 @@ Utility Library for working with [JSON Path](https://goessner.net/articles/JsonP
 Add the following to your `:deps` map in your deps.edn file:
 
 ```clojure
-com.yetanalytics/pathetic {:mvn/version "0.4.1"
+com.yetanalytics/pathetic {:mvn/version "0.5.0"
                            :exclusions [org.clojure/clojure
                                         org.clojure/clojurescript]}
 ```
@@ -54,6 +54,8 @@ argument; common fields in `opts-map` include:
 - `:return-missing?` - Return paths and/or values at locations not found in the JSONPath object. Missing values are returned as `nil`. Default false.
 - `:return-duplicates?` - Return duplicate values from a JSONPath object. Default true.
 - `:prune-empty?` - Remove empty collections and values from a JSONPath object after having values excised. Default false.
+- `:wildcard-append?` Dictates if wildcard values should be appended to the end of existing seqs instead of overwriting existing values. Default true.
+- `:wildcard-limit?` Dictates how many wildcard paths should be generated. In overwrite mode, defaults to the length of each coll encountered. In append mode, the default depends on the function (either `1` or, for `apply-multi-value`, the number of values).
 
 Each function has two versions: a regular and a starred version. The regular versions accept JSONPath strings, while the starred versions accept parsed paths (which is useful in performance-critical situations). The starred versions do not accept `:first?` or `:strict?` as `opts-map` fields.
 
@@ -187,7 +189,39 @@ Supports :first?, :strict?, and :prune-empty? in `opts-map`.
    (excise stmt "$.id"))
 ```
 
-### apply-values
+### speculate-paths
+
+```
+Given `json` and a JSONPath string `paths`, return a vector of
+definite key paths, just like `get-paths`. However, unlike `get-paths`,
+paths will be enumerated even if the corresponding value does not exist
+in `json` on that path; in other words, it speculates what paths would
+exist if they are applied. If the string contains multiple JSONPaths, we
+return the key paths for all strings.
+
+Supports :first? in `opts-map`; :strict? is always overridden to `true`. Also accepts :wildcard-append? and :wildcard-limit args to affect behavior on wildcards.
+```
+
+```clojure
+(speculate-paths stmt "$.context.contextActivities.grouping[*]")
+=> [["context" "contextActivities" "grouping" 0]]
+
+(speculate-paths stmt "$.context.contextActivities.category[*].id")
+=> [["context" "contextActivities" "category" 1 "id"]]
+
+(speculate-paths stmt
+                 "$.context.contextActivities.category[*].id" 
+                 {:wildcard-limit 2})
+=> [["context" "contextActivities" "category" 1 "id"]
+    ["context" "contextActivities" "category" 2 "id"]]
+
+(speculate-paths stmt
+                 "$.context.contextActivities.category[*].id" 
+                 {:wildcard-append? false})
+=> [["context" "contextActivities" "category" 0 "id"]]
+```
+
+### apply-value
 
 ```
 Given `json`, a JSONPath string `paths`, and the JSON data
@@ -195,32 +229,66 @@ Given `json`, a JSONPath string `paths`, and the JSON data
 the location exists, update the pre-existing value. Otherwise,
 create the necessary data structures needed to contain `value`.
 
-The following caveats apply:
-- If only the root \"$\" is provided, `json` is overwritten in
-  its entirety.
-- If an array index skips over any vector entries, those skipped
-  entries will be assigned nil.
-- If a path contains a wildcard and the location up to that
-  point does not exist, create a new vector.
-- If a path contains a wildcard and the location is a collection,
-  append it to the coll. In the case of maps, the key is its
-  current size, e.g. {\"2\" : \"foo\"}.
-- Recursive descent, array slicing, and negative array indices
-  are disallowed (as per strict mode).
-
-Supports :first? in `opts-map`. :strict? is always overridden to
-`true`.
+Supports :first? in `opts-map`; :strict? is always overridden to `true`. Also accepts :wildcard-append? and :wildcard-limit args to affect behavior on wildcards.
 ```
 
 ``` clojure
-(= (update-in
+(= (assoc-in
     stmt
-    ["context" "contextActivities" "category"]
-    (fn [old] (conj old
-                    {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"})))
+    ["context" "contextActivities" "category" 0 "id"]
+    "http://www.example.com/meetings/categories/brainstorm_sesh")
    (apply-value stmt
                 "$.context.contextActivities.category[*].id"
                 "http://www.example.com/meetings/categories/brainstorm_sesh"))
+
+(= (update-in
+    stmt
+    ["context" "contextActivities" "category"]
+    (conj old
+          {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}))
+   (apply-value stmt
+                "$.context.contextActivities.category[*].id"
+                "http://www.example.com/meetings/categories/brainstorm_sesh"
+                {:wildcard-append? true}))
+```
+
+### apply-multi-value
+
+```
+"Given `json`, a JSONPath string `paths`, and a collection of JSON data
+`value`, apply `value` to the location given by `paths` in the order
+they are given. If the location exists, update the pre-existing value.
+Otherwise, create the necessary data structures needed to contain `value`.
+
+For example, an array specified by `[0,1]` in the path, then the first
+and second elements of `value` will be applied. Returns the modified
+`json` once `value` or the available path seqs runs out.
+   
+Supports :first? in `opts-map`; :strict? is always overridden to `true`. Also accepts :wildcard-append? and :wildcard-limit args to affect behavior on wildcards.
+```
+
+```clojure
+(= (-> stmt
+       (assoc-in ["context" "contextActivities" "category" 0 "id"]
+                 "http://www.example.com/meetings/categories/brainstorm_sesh")
+       (assoc-in ["context" "contextActivities" "category" 1 "id"]
+                 "http://www.example.com/meetings/categories/whiteboard_sesh"))
+   (apply-multi-value stmt
+                      "$.context.contextActivities.category[*].id"
+                      ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                       "http://www.example.com/meetings/categories/whiteboard_sesh"]))
+
+(= (update-in
+    stmt
+    ["context" "contextActivities" "category"]
+    (conj old
+          {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"})
+          {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})
+   (apply-multi-value stmt
+                      "$.context.contextActivities.category[*].id"
+                      ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                       "http://www.example.com/meetings/categories/whiteboard_sesh"]
+                      {:wildcard-append? true}))
 ```
 
 ## Other usage

@@ -429,6 +429,75 @@
            (p/excise long-statement
                      "$.context.contextActivities.grouping[*]")))))
 
+(deftest speculate-paths-test
+  (testing "Enumerate deterministic JSONPaths regardless of values present"
+    (is (= [["foo"]]
+           (p/speculate-paths nil "$.foo")))
+    (is (= [[0]]
+           (p/speculate-paths [] "$[0]")))
+    (is (= [["universe" 2 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar")))
+    (is (= [["universe" 2 "foo" "bar"]
+            ["universe" 3 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-limit 2})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "foo" "bar"]
+            ["universe" 2 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   3})))
+    (is (= [["universe" 0 "foo" "bar"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   1})))
+    (is (= []
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? false
+                               :wildcard-limit   -1})))
+    (is (= []
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe.*.foo.bar"
+                              {:wildcard-append? true
+                               :wildcard-limit   -1})))
+    (is (= (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe[0].foo.bar")
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe[0].foo.bar | $.universe[1].baz"
+                              {:first? true})))
+    (is (= [["universe" 0 "foo" "bar"]
+            ["universe" 1 "baz"]]
+           (p/speculate-paths {"universe" [{"foo" {"bar" 0}} {"baz" 1}]}
+                              "$.universe[0].foo.bar | $.universe[1].baz")))
+    (is (= [["store" "book" 4 "author"]]
+           (p/speculate-paths goessner-ex "$.store.book[*].author")))
+    (is (= [["store" "book" 4 "isbn"]]
+           (p/speculate-paths goessner-ex "$.store.book[*].isbn")))
+    (is (= [["context" "contextActivities" "grouping" 0]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.grouping[*]")))
+    (is (= [["context" "contextActivities" "grouping" 0]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.grouping[0]")))
+    (is (= [["context" "contextActivities" "grouping" 0 "id"]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.grouping[*].id")))
+    (is (= [["context" "contextActivities" "category" 1 "id"]]
+           (p/speculate-paths long-statement
+                              "$.context.contextActivities.category[*].id")))
+    (is (strict-parse-failed?
+         (p/get-paths goessner-ex "$.store.bicycle..*")))))
+
 (deftest apply-value-test
   (testing "Applying and updating values using JSONPath"
     (is (= {"foo" 0}
@@ -440,37 +509,176 @@
             (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]} path 2))
       {"universe" [{"foo" 0} {"bar" 1 "baz" 2}]}       "$.universe[1].baz"
       {"universe" [{"foo" 0} {"bar" 2}]}               "$.universe[1].bar"
-      {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar.*"
       {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar[0]"
       {"universe" [{"foo" 0} {"bar" [nil 2]}]}         "$.universe[1].bar[1]"
       {"universe" [{"foo" 0} {"bar" [2 nil 2]}]}       "$.universe[1].bar[0,2]"
-      {"universe" [{"foo" 0} {"bar" 1 "1" 2}]}         "$.universe[1].*"
-      {"universe" [{"foo" 0} {"bar" 1} {"baz" 2}]}     "$.universe[*].baz"
       {"universe" [{"foo" 0 "b" 2} {"bar" 1 "b" 2}]}   "$.universe[0,1].b"
       {"universe" [2 2]}                               "$.universe[0,1]"
       {"universe" 2 "baz" 2}                           "$['universe','baz']"
       {"universe" 2 "baz" 2}                           "$.universe|$.baz"
       {"universe" [{"foo" 0} {"bar" 1}] "baz" 2}       "$.baz"
-      {"universe" [{"foo" 0} {"bar" 1}] "1" {"baz" 2}} "$.*.baz"
-      {"universe" [{"foo" 0} {"bar" 1}] "1" 2}         "$.*"
       [2]       "$[0]"
       2         "$"
-      {"foo" 2} "$ | $.foo")
+      {"foo" 2} "$ | $.foo"
+      ;; wildcard tests
+      {"universe" [{"foo" 0} {"bar" [2]}]}           "$.universe[1].bar.*"
+      {"universe" [{"foo" 0} {"bar" 2}]}             "$.universe[1].*"
+      {"universe" [{"foo" 0 "b" 2} {"bar" 1 "b" 2}]} "$.universe[*].b"
+      {"universe" {"baz" 2}}                         "$.*.baz"
+      {"universe" 2}                                 "$.*")
+    (are [expected path]
+         (= expected
+            (p/apply-value {"universe" [{"foo" 0} {"bar" 1}]} path 2
+                           {:wildcard-append? true}))
+      {"universe" [{"foo" 0} {"bar" [2]}]}             "$.universe[1].bar.*"
+      {"universe" [{"foo" 0} {"bar" 1 "1" 2}]}         "$.universe[1].*"
+      {"universe" [{"foo" 0} {"bar" 1} {"b" 2}]}       "$.universe[*].b"
+      {"universe" [{"foo" 0} {"bar" 1}] "1" {"baz" 2}} "$.*.baz"
+      {"universe" [{"foo" 0} {"bar" 1}] "1" 2}         "$.*")
     (is (strict-parse-failed? (p/apply-value {"universe" 0} "$..*" 2)))
     ;; Tests on Statement
     (is (= (assoc long-statement "foo" "bar")
            (p/apply-value long-statement "$.foo" "bar")))
-    (is (= (update-in long-statement
-                      ["context" "contextActivities" "category"]
-                      (fn [old]
-                        (conj old
-                              {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
-                              {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})))
+    (is (= (assoc-in long-statement
+                     ["context" "contextActivities" "category" 0 "id"]
+                     "http://www.example.com/meetings/categories/whiteboard_sesh")
            (-> long-statement
                (p/apply-value "$.context.contextActivities.category[*].id"
                               "http://www.example.com/meetings/categories/brainstorm_sesh")
                (p/apply-value "$.context.contextActivities.category[*].id"
-                              "http://www.example.com/meetings/categories/whiteboard_sesh"))))))
+                              "http://www.example.com/meetings/categories/whiteboard_sesh"))))
+    (is (= (update-in long-statement
+                      ["context" "contextActivities" "category"]
+                      conj
+                      {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
+                      {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})
+           (-> long-statement
+               (p/apply-value "$.context.contextActivities.category[*].id"
+                              "http://www.example.com/meetings/categories/brainstorm_sesh"
+                              {:wildcard-append? true})
+               (p/apply-value "$.context.contextActivities.category[*].id"
+                              "http://www.example.com/meetings/categories/whiteboard_sesh"
+                              {:wildcard-append? true}))))
+    (is (= (-> long-statement
+               (assoc-in
+                ["context" "contextActivities" "category" 0 "id"]
+                "http://www.example.com/meetings/categories/brainstorm_sesh")
+               (assoc-in
+                ["context" "contextActivities" "category" 1 "id"]
+                "http://www.example.com/meetings/categories/whiteboard_sesh"))
+           (-> long-statement
+               (p/apply-multi-value "$.context.contextActivities.category[*].id"
+                                    ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                                     "http://www.example.com/meetings/categories/whiteboard_sesh"]))))
+    (is (= (update-in long-statement
+                      ["context" "contextActivities" "category"]
+                      conj
+                      {"id" "http://www.example.com/meetings/categories/brainstorm_sesh"}
+                      {"id" "http://www.example.com/meetings/categories/whiteboard_sesh"})
+           (-> long-statement
+               (p/apply-multi-value "$.context.contextActivities.category[*].id"
+                                    ["http://www.example.com/meetings/categories/brainstorm_sesh"
+                                     "http://www.example.com/meetings/categories/whiteboard_sesh"]
+                                    {:wildcard-append? true})))))
+  (testing "Applying and updating multiple values"
+    (is (= {"foo" []} ; unchanged
+           (p/apply-multi-value {"foo" []} "$.foo.*" [])))
+    (is (= {"foo" []}
+           (p/apply-multi-value {"foo" []} "$.foo[0]" [])))
+    (is (= {"foo" []}
+           (p/apply-multi-value {"foo" []} "$.foo[0,1]" [])))
+    (is (= {"foo" [1]}
+           (p/apply-multi-value {"foo" []} "$.foo[0]" [1])))
+    (is (= {"foo" [1]}
+           (p/apply-multi-value {"foo" []} "$.foo[0,1]" [1])))
+    (are [expected path]
+         (= expected
+            (p/apply-multi-value {"foo" []} path [1 2]))
+      {"foo" [1 2]}     "$.foo[0,1]"
+      {"foo" [nil 1 2]} "$.foo[1,2]"
+      {"foo" [1 nil 2]} "$.foo[0,2]"
+      {"foo" [1]}       "$.foo[0]"
+      {"foo" [nil 1]}   "$.foo[1]"
+      {"foo" 1 "bar" 2} "$['foo','bar']"
+      {"foo" [1 2]}     "$.foo[*]"
+      [1 2]             "$[0,1]"
+      1                 "$"
+      {"foo" 2}         "$ | $.foo"
+      {"foo" [2]}       "$ | $.foo[0,1]"))
+  (testing "Applying w/ different values of `:wildcard-append?` and `:wildcard-limit`"
+    (are [expected opt-args]
+         (= expected
+            (p/apply-value {"foo" [0 0 0]} "$.foo.*" 1 opt-args))
+      {"foo" [1 1 1]}     {}
+      {"foo" [1 1 1]}     {:wildcard-append? false}
+      {"foo" [1 1 1]}     {:wildcard-append? false
+                           :wildcard-limit   3}
+      {"foo" [1 1 0]}     {:wildcard-append? false
+                           :wildcard-limit   2}
+      {"foo" [1 0 0]}     {:wildcard-append? false
+                           :wildcard-limit   1}
+      {"foo" [0 0 0]}     {:wildcard-append? false
+                           :wildcard-limit   0}
+      {"foo" [0 0 0 1 1]} {:wildcard-append? true
+                           :wildcard-limit   2}
+      {"foo" [0 0 0 1]}   {:wildcard-append? true
+                           :wildcard-limit   1}
+      {"foo" [0 0 0]}     {:wildcard-append? true
+                           :wildcard-limit   0})
+    (are [expected values opt-args]
+         (= expected
+            (p/apply-multi-value {"foo" [0 0 0]} "$.foo.*" values opt-args))
+      {"foo" [1 2 0]}     [1 2]     {}
+      {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false}
+      {"foo" [1 2 3 4]}   [1 2 3 4] {:wildcard-append? false}
+      {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   3}
+      {"foo" [1 2 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   2}
+      {"foo" [1 0 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   1}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   0}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? false
+                                     :wildcard-limit   -1}
+      {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true}
+      {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   3}
+      {"foo" [0 0 0 1 2]} [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   2}
+      {"foo" [0 0 0 1]}   [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   1}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   0}
+      {"foo" [0 0 0]}     [1 2]     {:wildcard-append? true
+                                     :wildcard-limit   -1})
+    (are [expected values opt-args]
+         (= expected
+            (p/apply-multi-value {"foo" 0} "$.foo.*" values opt-args))
+      {"foo" [1 2]}   [1 2]   {}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? false}
+      {"foo" [1 2 3]} [1 2 3] {:wildcard-append? false}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? false
+                               :wildcard-limit   3}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? false
+                               :wildcard-limit   2}
+      {"foo" [1]}     [1 2]   {:wildcard-append? false
+                               :wildcard-limit   1}
+      {"foo" 0}       [1 2]   {:wildcard-append? false
+                               :wildcard-limit   0}
+      {"foo" 0}       [1 2]   {:wildcard-append? false
+                               :wildcard-limit   -1}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? true}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? true
+                               :wildcard-limit   3}
+      {"foo" [1 2]}   [1 2]   {:wildcard-append? true
+                               :wildcard-limit   2}
+      {"foo" [1]}     [1 2]   {:wildcard-append? true
+                               :wildcard-limit   1}
+      {"foo" 0}       [1 2]   {:wildcard-append? true
+                               :wildcard-limit   0}
+      {"foo" 0}       [1 2]   {:wildcard-append? true
+                               :wildcard-limit   -1})))
 
 (deftest gen-tests
   (testing "Generative tests for pathetic"
@@ -480,9 +688,9 @@
                          p/get-path-value-map*
                          p/select-keys-at*
                          p/excise*
-                         ;; Don't check apply-value* since the generator often
-                         ;; gets stuck.
-                         #_p/apply-value*]
+                         p/speculate-paths*
+                         p/apply-value*
+                         p/apply-multi-value*]
                        {:clojure.spec.test.check/opts
                         {:num-tests #?(:clj 200 :cljs 40)
                          :seed (rand-int 2000000000)}})
