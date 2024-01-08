@@ -302,6 +302,6 @@ Similar to `path-seqs`, except it continues traversing the path even if the loca
 
 ## License
 
-Copyright © 2019-2023 Yet Analytics, Inc.
+Copyright © 2019-2024 Yet Analytics, Inc.
 
 Distributed under the Apache License version 2.0. 
