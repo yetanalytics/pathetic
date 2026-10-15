@@ -300,6 +300,23 @@ Given a JSON object and a parsed JSONPath, return a seq of maps with the followi
 
 Similar to `path-seqs`, except it continues traversing the path even if the location in the JSON data is missing or incompatible. Returns the same fields as `path-seqs` except for `:fail`. Accepts `wildcard-append?` and `wildcard-limit` arguments; the latter is nilable.
 
+## Dependency vulnerability tracking
+
+The `Deps` workflow submits the library's Maven dependency tree to GitHub's
+dependency graph on pushes to `master` and can also be run manually. Dependabot
+uses this graph to check for known vulnerabilities.
+
+`make pom.xml` regenerates the ignored POM from the base dependencies in
+`deps.edn`, excluding local user configuration. The snapshot is associated with
+`deps.edn` in GitHub and includes `core.match`, Instaparse, and their transitive
+Maven dependencies. Since the base dependencies do not pin Clojure itself, the
+generated POM also includes the Clojure CLI's default Clojure dependency.
+
+The `:dev`, `:test`, `:runner-clj`, and `:runner-cljs` aliases are excluded,
+including ClojureScript, development tooling, and test runners. The Cognitect
+test runner is a Git dependency and needs handling beyond Maven POM generation.
+Development and test tooling require separate coverage.
+
 ## License
 
 Copyright © 2019-2025 Yet Analytics, Inc.
